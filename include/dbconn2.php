@@ -1,15 +1,9 @@
 <?php
-// ===== DB 연결(PHP 5.5용 mysqli) =====
-/*$db_host = "3.229.229.247";
-$db_port = "3306";
-$db_user = "prtdbu";
-$db_passwd = "lee10011";
-$db_name = "prtadmindb";
-*/
-$db_host = "98.91.65.48";
+
+$db_host = "XX.XX.XX.XX";
 $db_port = "3306";
 $db_user = "wincom00";
-$db_passwd = "Lee10011!";
+$db_passwd = "XXXXXXX!";
 $db_name = "prtadmindb";
 $dbConn = mysqli_connect($db_host, $db_user, $db_passwd, $db_name, $db_port);
 if (!$dbConn) {
