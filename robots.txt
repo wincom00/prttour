@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /uload/
+Disallow: /*.pdf$
+Disallow: /*.docx$
+Disallow: /*.doc$
+Disallow: /*.xlsx$
+Disallow: /*.xls$

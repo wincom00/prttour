@@ -1,0 +1,14 @@
+ [{ 
+    phpinreference: "PHP 7.4",
+    phpdoc: "PHPDoc",
+    phpunit: "PHPUnit",    
+     "phpcs": {
+        "standard": "PSR2",
+        "ignorePatterns": [
+            "**/vendor/**"
+        ]
+    }
+
+
+
+ }]

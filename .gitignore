@@ -1,0 +1,120 @@
+# ===== DB / Credentials =====
+include/dbconn.php
+**/dbconn.php
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ===== Composer =====
+vendor/
+composer.lock
+composer.phar
+
+# ===== Backup / Old version files =====
+bakups/
+*.bak
+*_bak.php
+*_bak_*.php
+*bak.php
+*.phpbak
+*.php_*
+
+# date-suffixed legacy copies
+*_[0-9][0-9][0-9][0-9][0-9][0-9].php
+*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].php
+*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].php
+*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].php
+
+# common legacy duplicates
+*_1222.php
+*1221.php
+*_n.php
+base_reservation_m_*.php
+base_reservation_mt*.php
+base_reservatio*1221.php
+base_product_*1222.php
+guide_assign_customer*.php
+guide_assign_current_state*.php
+hotel_assign_m_*.php
+sc_local_*.php
+sc_local1.php
+cooperation_cal_list*_bak.php
+cooperation_cal_list*o.php
+inc_insert_reserve*_*.php
+inc_insert_reserve1*.php
+inc_insert_reservet.php
+index_*.php
+comp_reset1.php
+login_old.php
+total_reservation_*.php
+employee_cal_list[0-9]*.php
+
+# ===== Large binaries / Docs =====
+*.sql
+*.pptx
+*.xlsx
+*.docx
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.rar
+*.7z
+*.gz
+*.iso
+
+# ===== Media / User uploads =====
+upload/
+uploads/
+upload_image*/
+product_img/
+email_hist/
+file-manager/uploaded/
+news/uploaded/
+news/img_*/
+sound/
+video/
+img/cache/
+
+# ===== Logs / Temp =====
+*.log
+nohup.out
+*.tmp
+tmp.html
+tmp/
+temp/
+Ctmpresult.txt
+C*tmpresult.txt
+file_save_debug.log
+ftp_sync.log
+
+# random hash-named dumps
+[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].txt
+
+# ===== IDE / OS =====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===== Claude / AI tooling =====
+.claude/
+.claude.txt
+.claude.local.md
+AGENTS.md
+
+# ===== Test / scratch =====
+test1.php
+test11.php
+test23h.php
+test24h.php
+test55.php
+test66.php
+testdu[p23.php
+testdulp24.php

@@ -1,0 +1,96 @@
+    .calculator-toggle {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      width: 60px;
+      height: 60px;
+      background-color: #ff0000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+    }
+    .calculator-toggle:hover {
+      background-color: #cc0000;
+    }
+    .calculator-widget {
+      display: none;
+      width: 300px;
+      background-color: #000;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #fff;
+      position: fixed;
+      bottom: 100px;
+      left: 20px;
+      z-index: 1000;
+    }
+    .calculator-widget input {
+      width: 100%;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 36px;
+      text-align: right;
+      padding: 20px 10px;
+      margin-bottom: 10px;
+      outline: none;
+    }
+    .calculator-widget .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .calculator-widget button {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.2s;
+    }
+    .calculator-widget button.number {
+      background-color: #333;
+      color: #fff;
+    }
+    .calculator-widget button.number:hover {
+      background-color: #444;
+    }
+    .calculator-widget button.operator {
+      background-color: #ff9500;
+      color: #fff;
+    }
+    .calculator-widget button.operator:hover {
+      background-color: #e08a00;
+    }
+    .calculator-widget button.utility {background-color: #a5a5a5;
+	
+      color: #000;
+    }
+    .calculator-widget button.utility:hover {
+      background-color: #b5b5b5;
+    }
+    .calculator-widget button.equals {
+      background-color: #ff9500;
+      color: #fff;
+    }
+    .calculator-widget button.equals:hover {
+      background-color: #e08a00;
+    }
+    .calculator-widget button.zero {
+      grid-column: span 2;
+      width: 130px;
+      border-radius: 30px;
+      justify-content: flex-start;
+      padding-left: 20px;
+    }
+ 

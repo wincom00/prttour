@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TravelERP 대시보드</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif; background: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: 210px; min-width: 210px; background: #1a2537; color: #fff;
+    display: flex; flex-direction: column; height: 100vh; overflow-y: auto;
+    position: fixed; left: 0; top: 0; z-index: 100;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    padding: 22px 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .logo-icon {
+    width: 34px; height: 34px; background: #3b82f6; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .logo-text { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+
+  .nav-section { padding: 20px 0 4px; }
+  .nav-section-label {
+    font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase;
+    letter-spacing: 1px; padding: 0 20px 8px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px; margin: 1px 8px; border-radius: 8px;
+    cursor: pointer; font-size: 13.5px; color: #94a3b8;
+    transition: background 0.15s, color 0.15s; position: relative;
+    text-decoration: none;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.07); color: #e2e8f0; }
+  .nav-item.active { background: #3b82f6; color: #fff; font-weight: 600; }
+  .nav-item .icon { width: 18px; text-align: center; font-size: 14px; flex-shrink: 0; }
+  .nav-badge {
+    margin-left: auto; font-size: 10px; font-weight: 700; padding: 2px 7px;
+    border-radius: 20px; line-height: 1.4;
+  }
+  .badge-blue { background: #3b82f6; color: #fff; }
+  .nav-item.active .badge-blue { background: rgba(255,255,255,0.25); }
+  .badge-orange { background: #f59e0b; color: #fff; }
+
+  /* ── MAIN WRAPPER ── */
+  #main-wrapper {
+    margin-left: 210px; flex: 1; display: flex; flex-direction: column;
+    height: 100vh; overflow: hidden;
+  }
+
+  /* ── TOP HEADER ── */
+  #header {
+    background: #fff; border-bottom: 1px solid #e2e8f0;
+    padding: 0 28px; height: 56px; display: flex; align-items: center;
+    justify-content: space-between; flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  }
+  .breadcrumb { font-size: 13px; color: #64748b; }
+  .breadcrumb span { color: #94a3b8; }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .bell-wrap { position: relative; cursor: pointer; }
+  .bell-icon { font-size: 18px; color: #64748b; }
+  .bell-badge {
+    position: absolute; top: -5px; right: -6px;
+    background: #ef4444; color: #fff; font-size: 9px; font-weight: 700;
+    width: 16px; height: 16px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .user-avatar {
+    width: 36px; height: 36px; background: #3b82f6; border-radius: 50%;
+    color: #fff; font-weight: 700; font-size: 15px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .user-info { display: flex; flex-direction: column; }
+  .user-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+  .user-role { font-size: 11px; color: #94a3b8; }
+
+  /* ── SCROLLABLE CONTENT ── */
+  #content {
+    flex: 1; overflow-y: auto; padding: 0;
+  }
+
+  /* ── WARNING BANNER ── */
+  .warning-banner {
+    background: #fef3c7; border-left: 4px solid #f59e0b;
+    padding: 12px 28px; display: flex; align-items: center; gap: 10px;
+    font-size: 13.5px; color: #92400e;
+  }
+  .warning-banner .warn-icon { font-size: 16px; }
+  .warning-banner .warn-text { flex: 1; }
+  .warning-banner strong { font-weight: 700; color: #78350f; }
+  .btn-warn {
+    background: #f59e0b; color: #fff; border: none; padding: 7px 14px;
+    border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    white-space: nowrap; transition: background 0.15s;
+  }
+  .btn-warn:hover { background: #d97706; }
+
+  /* ── PAGE TITLE ── */
+  .page-title-bar {
+    padding: 22px 28px 16px; display: flex; align-items: flex-start;
+    justify-content: space-between;
+  }
+  .page-title-bar h1 { font-size: 24px; font-weight: 700; color: #0f172a; }
+  .page-subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+  .title-actions { display: flex; gap: 10px; align-items: center; }
+  .btn-outline {
+    background: #fff; border: 1px solid #d1d5db; color: #374151;
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .btn-outline:hover { background: #f9fafb; }
+  .btn-primary {
+    background: #3b82f6; border: none; color: #fff;
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .btn-primary:hover { background: #2563eb; }
+
+  /* ── PADDING WRAPPER ── */
+  .content-pad { padding: 0 28px 28px; }
+
+  /* ── STATS ROW ── */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .stat-card {
+    background: #fff; border-radius: 12px; padding: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07); border: 1px solid #f1f5f9;
+  }
+  .stat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .stat-label { font-size: 13px; color: #64748b; font-weight: 500; }
+  .stat-icon {
+    width: 36px; height: 36px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+  }
+  .icon-blue { background: #eff6ff; }
+  .icon-amber { background: #fffbeb; }
+  .icon-sky { background: #f0f9ff; }
+  .icon-red { background: #fef2f2; }
+  .stat-value { font-size: 26px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+  .stat-delta { font-size: 12.5px; display: flex; align-items: center; gap: 4px; }
+  .delta-green { color: #10b981; }
+  .delta-red { color: #ef4444; }
+  .delta-gray { color: #94a3b8; }
+
+  /* ── TWO COLUMN LAYOUT ── */
+  .two-col { display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; }
+
+  /* ── CARD ── */
+  .card {
+    background: #fff; border-radius: 12px; padding: 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07); border: 1px solid #f1f5f9;
+    margin-bottom: 20px;
+  }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-title { font-size: 15px; font-weight: 700; color: #0f172a; }
+  .card-link { font-size: 12.5px; color: #3b82f6; cursor: pointer; text-decoration: none; }
+  .card-link:hover { text-decoration: underline; }
+
+  /* Toggle buttons */
+  .toggle-group { display: flex; gap: 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+  .toggle-btn {
+    padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer;
+    border: none; background: #fff; color: #64748b; transition: background 0.15s, color 0.15s;
+  }
+  .toggle-btn.active { background: #3b82f6; color: #fff; font-weight: 600; }
+  .toggle-btn:not(:last-child) { border-right: 1px solid #e2e8f0; }
+
+  /* Chart container */
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ── TABLE ── */
+  .res-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .res-table th {
+    text-align: left; padding: 8px 12px; font-size: 11.5px; font-weight: 600;
+    color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 2px solid #f1f5f9; background: #fafafa;
+  }
+  .res-table td { padding: 11px 12px; border-bottom: 1px solid #f8fafc; color: #374151; }
+  .res-table tr:last-child td { border-bottom: none; }
+  .res-table tr:hover td { background: #f8fafc; }
+  .res-no { font-weight: 600; color: #3b82f6; font-family: monospace; font-size: 12.5px; }
+  .res-customer { font-weight: 600; color: #1e293b; }
+  .res-amount { font-weight: 600; color: #1e293b; font-size: 12.5px; }
+
+  .badge {
+    display: inline-block; padding: 3px 9px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .badge-red { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+  .badge-green { background: #f0fdf4; color: #10b981; border: 1px solid #bbf7d0; }
+  .badge-gray { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+  .badge-bluegray { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+  .badge-orange { background: #fffbeb; color: #f59e0b; border: 1px solid #fde68a; }
+
+  .table-footer { text-align: center; padding: 14px 0 0; }
+
+  /* ── RIGHT COLUMN ── */
+  .departure-list { display: flex; flex-direction: column; gap: 12px; }
+  .dep-item { display: flex; flex-direction: column; gap: 3px; }
+  .dep-row1 { display: flex; align-items: center; gap: 10px; }
+  .dep-time { font-size: 13px; font-weight: 700; color: #1e293b; min-width: 42px; font-family: monospace; }
+  .dep-dest { font-size: 13.5px; font-weight: 600; color: #0f172a; flex: 1; }
+  .dep-info { font-size: 11.5px; color: #64748b; padding-left: 52px; }
+  .dep-divider { border: none; border-top: 1px solid #f1f5f9; margin: 6px 0 0; }
+
+  /* ── SETTLEMENT CARD ── */
+  .settle-list { display: flex; flex-direction: column; gap: 10px; }
+  .settle-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 14px; border-radius: 9px; background: #fafafa;
+    border-left: 4px solid transparent;
+  }
+  .settle-item.red { border-left-color: #ef4444; }
+  .settle-item.yellow { border-left-color: #f59e0b; }
+  .settle-item.blue { border-left-color: #3b82f6; }
+  .settle-text { flex: 1; }
+  .settle-title { font-size: 13px; font-weight: 600; color: #1e293b; }
+  .settle-count { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .btn-settle {
+    background: #fff; border: 1px solid #e2e8f0; color: #374151;
+    padding: 5px 11px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    cursor: pointer; white-space: nowrap; transition: background 0.15s;
+  }
+  .btn-settle:hover { background: #f1f5f9; }
+
+  /* ── DOUGHNUT CARD ── */
+  .donut-header-right { font-size: 12.5px; color: #64748b; font-weight: 500; }
+  .donut-wrap { position: relative; height: 180px; margin: 0 auto 16px; width: 180px; }
+  .donut-legend { display: flex; flex-direction: column; gap: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 10px; }
+  .legend-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+  .legend-label { font-size: 13px; color: #374151; flex: 1; }
+  .legend-count { font-size: 12.5px; color: #64748b; font-weight: 500; margin-left: auto; }
+  .legend-pct { font-size: 12.5px; font-weight: 700; color: #0f172a; min-width: 34px; text-align: right; }
+
+  /* Badge beside card title */
+  .title-badge {
+    background: #eff6ff; color: #3b82f6; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 20px; margin-left: 8px;
+  }
+
+  /* Scrollbar styling */
+  #content::-webkit-scrollbar { width: 6px; }
+  #content::-webkit-scrollbar-track { background: transparent; }
+  #content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+  #sidebar::-webkit-scrollbar { width: 4px; }
+  #sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     SIDEBAR
+═══════════════════════════════════════════ -->
+<nav id="sidebar">
+  <div class="logo">
+    <div class="logo-icon">✈</div>
+    <span class="logo-text">TravelERP</span>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">예약·판매</div>
+    <a class="nav-item active" href="#">
+      <span class="icon">⊞</span> 대시보드
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon">📅</span> 예약관리
+      <span class="nav-badge badge-blue">10</span>
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon">🧳</span> 패키지여행
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon">🚶</span> 자유여행
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon">✈</span> 항공권
+    </a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">고객·접수</div>
+    <a class="nav-item" href="#">
+      <span class="icon">👥</span> 고객관리
+    </a>
+    <a class="nav-item" href="#">
+      <span class="icon">💰</span> 정산관리
+      <span class="nav-badge badge-orange">7</span>
+    </a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">문서</div>
+    <a class="nav-item" href="#">
+      <span class="icon">📊</span> 통계/리포트
+    </a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">시스템</div>
+    <a class="nav-item" href="#">
+      <span class="icon">⚙</span> 설정
+    </a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     MAIN WRAPPER
+═══════════════════════════════════════════ -->
+<div id="main-wrapper">
+
+  <!-- TOP HEADER -->
+  <header id="header">
+    <div class="breadcrumb">홈 <span>›</span> 대시보드</div>
+    <div class="header-right">
+      <div class="bell-wrap">
+        <span class="bell-icon">🔔</span>
+        <span class="bell-badge">4</span>
+      </div>
+      <div class="user-avatar">박</div>
+      <div class="user-info">
+        <span class="user-name">박성남</span>
+        <span class="user-role">역할임무</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- SCROLLABLE CONTENT -->
+  <div id="content">
+
+    <!-- WARNING BANNER -->
+    <div class="warning-banner">
+      <span class="warn-icon">⚠️</span>
+      <span class="warn-text">
+        <strong>미처리 예약 3건</strong>이 출발 48시간 이내입니다.
+      </span>
+      <button class="btn-warn">바로 확인 →</button>
+    </div>
+
+    <!-- PAGE TITLE -->
+    <div class="page-title-bar">
+      <div>
+        <h1>대시보드</h1>
+        <div class="page-subtitle">2026년 3월 9일 월요일 · 오늘의 운영 현황</div>
+      </div>
+      <div class="title-actions">
+        <button class="btn-outline">리포트 출력</button>
+        <button class="btn-primary">+ 예약 등록</button>
+      </div>
+    </div>
+
+    <div class="content-pad">
+
+      <!-- STATS ROW -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-label">오늘 신규 예약</span>
+            <div class="stat-icon icon-blue">📋</div>
+          </div>
+          <div class="stat-value">7건</div>
+          <div class="stat-delta delta-green">▲ 2건 전일 대비</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-label">이번 달 매출</span>
+            <div class="stat-icon icon-amber">🔥</div>
+          </div>
+          <div class="stat-value">4,872만원</div>
+          <div class="stat-delta delta-green">▲ 목표 대비 89%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-label">이번 달 출발</span>
+            <div class="stat-icon icon-sky">✈</div>
+          </div>
+          <div class="stat-value">124건</div>
+          <div class="stat-delta delta-gray">미확정 12건 포함</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-label">미수금</span>
+            <div class="stat-icon icon-red">⚠️</div>
+          </div>
+          <div class="stat-value">840만원</div>
+          <div class="stat-delta delta-red">▼ 3건 미처리</div>
+        </div>
+      </div>
+
+      <!-- TWO COLUMN -->
+      <div class="two-col">
+
+        <!-- LEFT COLUMN -->
+        <div>
+          <!-- 월별 현황 -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">월별 현황</span>
+              <div class="toggle-group">
+                <button class="toggle-btn active" id="tb1">예약건수</button>
+                <button class="toggle-btn" id="tb2">매출액</button>
+                <button class="toggle-btn" id="tb3">출발건수</button>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="monthlyChart"></canvas>
+            </div>
+          </div>
+
+          <!-- 최근 예약 -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">최근 예약</span>
+              <a class="card-link" href="#">전체 예약 보기 →</a>
+            </div>
+            <table class="res-table">
+              <thead>
+                <tr>
+                  <th>예약번호</th>
+                  <th>고객</th>
+                  <th>상품</th>
+                  <th>출발일</th>
+                  <th>금액</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="res-no">#R-20252</span></td>
+                  <td><span class="res-customer">최지우</span></td>
+                  <td>오사카 3박4일 패키지</td>
+                  <td>03/22</td>
+                  <td><span class="res-amount">2,640,000</span></td>
+                  <td><span class="badge badge-red">입금대기</span></td>
+                </tr>
+                <tr>
+                  <td><span class="res-no">#R-20251</span></td>
+                  <td><span class="res-customer">홍길동</span></td>
+                  <td>싱가포르 자유여행 5일</td>
+                  <td>03/28</td>
+                  <td><span class="res-amount">1,980,000</span></td>
+                  <td><span class="badge badge-green">확정</span></td>
+                </tr>
+                <tr>
+                  <td><span class="res-no">#R-20250</span></td>
+                  <td><span class="res-customer">김은지</span></td>
+                  <td>하와이 7박8일 패키지</td>
+                  <td>04/05</td>
+                  <td><span class="res-amount">5,820,000</span></td>
+                  <td><span class="badge badge-gray">대기</span></td>
+                </tr>
+                <tr>
+                  <td><span class="res-no">#R-20249</span></td>
+                  <td><span class="res-customer">이준혁</span></td>
+                  <td>인천→나리타 항공권</td>
+                  <td>03/20</td>
+                  <td><span class="res-amount">380,000</span></td>
+                  <td><span class="badge badge-green">확정</span></td>
+                </tr>
+                <tr>
+                  <td><span class="res-no">#R-20248</span></td>
+                  <td><span class="res-customer">서민준</span></td>
+                  <td>파리 9박10일 패키지</td>
+                  <td>04/12</td>
+                  <td><span class="res-amount">8,450,000</span></td>
+                  <td><span class="badge badge-red">입금대기</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="table-footer">
+              <a class="card-link" href="#">전체 예약 보기 →</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div>
+          <!-- 오늘 출발 -->
+          <div class="card">
+            <div class="card-header">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span class="card-title">오늘 출발</span>
+                <span class="title-badge">8건</span>
+              </div>
+              <a class="card-link" href="#">전체 보기</a>
+            </div>
+            <div class="departure-list">
+              <div class="dep-item">
+                <div class="dep-row1">
+                  <span class="dep-time">05:30</span>
+                  <span class="dep-dest">방콕 5박6일 패키지</span>
+                  <span class="badge badge-bluegray">출발완료</span>
+                </div>
+                <div class="dep-info">이수진 외 5명 · 인솔: 최현우</div>
+                <hr class="dep-divider">
+              </div>
+              <div class="dep-item">
+                <div class="dep-row1">
+                  <span class="dep-time">08:30</span>
+                  <span class="dep-dest">도쿄 4박5일 패키지</span>
+                  <span class="badge badge-bluegray">출발완료</span>
+                </div>
+                <div class="dep-info">김민준 외 3명 · 인솔: 박현수</div>
+                <hr class="dep-divider">
+              </div>
+              <div class="dep-item">
+                <div class="dep-row1">
+                  <span class="dep-time">10:15</span>
+                  <span class="dep-dest">제주 자유여행 2박3일</span>
+                  <span class="badge badge-green">확정</span>
+                </div>
+                <div class="dep-info">박지현 외 1명</div>
+                <hr class="dep-divider">
+              </div>
+              <div class="dep-item">
+                <div class="dep-row1">
+                  <span class="dep-time">14:00</span>
+                  <span class="dep-dest">홍콩·마카오 3박4일</span>
+                  <span class="badge badge-green">확정</span>
+                </div>
+                <div class="dep-info">정우성 외 2명 · 인솔: 강나라</div>
+                <hr class="dep-divider">
+              </div>
+              <div class="dep-item">
+                <div class="dep-row1">
+                  <span class="dep-time">17:20</span>
+                  <span class="dep-dest">나트랑 4박5일 패키지</span>
+                  <span class="badge badge-orange">준비중</span>
+                </div>
+                <div class="dep-info">한소희 외 7명 · 인솔: 이동준</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 정산 처리 필요 -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">정산 처리 필요</span>
+            </div>
+            <div class="settle-list">
+              <div class="settle-item red">
+                <div class="settle-text">
+                  <div class="settle-title">미수금 마감 임박</div>
+                  <div class="settle-count">2건</div>
+                </div>
+                <button class="btn-settle">처리 →</button>
+              </div>
+              <div class="settle-item yellow">
+                <div class="settle-text">
+                  <div class="settle-title">지급 예정 (3일 이내)</div>
+                  <div class="settle-count">5건</div>
+                </div>
+                <button class="btn-settle">확인 →</button>
+              </div>
+              <div class="settle-item blue">
+                <div class="settle-text">
+                  <div class="settle-title">정산 자동화 대기</div>
+                  <div class="settle-count">8건</div>
+                </div>
+                <button class="btn-settle">실행 →</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 상품 유형별 비율 -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">상품 유형별 비율</span>
+              <span class="donut-header-right">이번 달 184건</span>
+            </div>
+            <div class="donut-wrap">
+              <canvas id="donutChart"></canvas>
+            </div>
+            <div class="donut-legend">
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#3b82f6;"></div>
+                <span class="legend-label">패키지</span>
+                <span class="legend-count">83건</span>
+                <span class="legend-pct">45%</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#06b6d4;"></div>
+                <span class="legend-label">자유여행</span>
+                <span class="legend-count">55건</span>
+                <span class="legend-pct">30%</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#93c5fd;"></div>
+                <span class="legend-label">항공권</span>
+                <span class="legend-count">46건</span>
+                <span class="legend-pct">25%</span>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /right column -->
+      </div><!-- /two-col -->
+    </div><!-- /content-pad -->
+  </div><!-- /content -->
+</div><!-- /main-wrapper -->
+
+<script>
+// ──────────────────────────────────────────────
+// Monthly Bar + Line Chart
+// ──────────────────────────────────────────────
+(function() {
+  const labels = ['10월', '11월', '12월', '1월', '2월', '3월 ▲'];
+  const values = [89, 107, 143, 118, 162, 184];
+  const barColors = ['#93c5fd','#93c5fd','#93c5fd','#93c5fd','#93c5fd','#2563eb'];
+
+  const ctx = document.getElementById('monthlyChart').getContext('2d');
+  const monthlyChart = new Chart(ctx, {
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: '예약건수',
+          data: values,
+          backgroundColor: barColors,
+          borderRadius: 5,
+          borderSkipped: false,
+          order: 2,
+          yAxisID: 'y'
+        },
+        {
+          type: 'line',
+          label: '추세',
+          data: values,
+          borderColor: '#f97316',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointBackgroundColor: '#f97316',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          tension: 0.35,
+          fill: false,
+          order: 1,
+          yAxisID: 'y'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y + '건'
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 12 }, color: '#64748b' }
+        },
+        y: {
+          min: 0, max: 220,
+          ticks: {
+            stepSize: 50, font: { size: 11 }, color: '#94a3b8',
+            callback: v => v
+          },
+          grid: { color: '#f1f5f9', drawTicks: false },
+          border: { dash: [4,4], display: false }
+        }
+      }
+    }
+  });
+
+  // Toggle buttons
+  const toggleData = {
+    tb1: { values: [89, 107, 143, 118, 162, 184], label: '예약건수', suffix: '건' },
+    tb2: { values: [4210, 5180, 6230, 4890, 7020, 4872], label: '매출액', suffix: '만원' },
+    tb3: { values: [72, 94, 121, 103, 145, 124], label: '출발건수', suffix: '건' }
+  };
+
+  ['tb1','tb2','tb3'].forEach(id => {
+    document.getElementById(id).addEventListener('click', function() {
+      ['tb1','tb2','tb3'].forEach(i => document.getElementById(i).classList.remove('active'));
+      this.classList.add('active');
+      const d = toggleData[id];
+      monthlyChart.data.datasets[0].data = d.values;
+      monthlyChart.data.datasets[1].data = d.values;
+      monthlyChart.data.datasets[0].label = d.label;
+      const mx = Math.max(...d.values);
+      monthlyChart.options.scales.y.max = Math.ceil(mx / 50) * 50 + 50;
+      monthlyChart.update();
+    });
+  });
+})();
+
+// ──────────────────────────────────────────────
+// Doughnut Chart
+// ──────────────────────────────────────────────
+(function() {
+  const ctx = document.getElementById('donutChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['패키지', '자유여행', '항공권'],
+      datasets: [{
+        data: [83, 55, 46],
+        backgroundColor: ['#3b82f6', '#06b6d4', '#93c5fd'],
+        borderWidth: 3,
+        borderColor: '#ffffff',
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + ctx.label + ': ' + ctx.parsed + '건 (' +
+              Math.round(ctx.parsed / 184 * 100) + '%)'
+          }
+        }
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
