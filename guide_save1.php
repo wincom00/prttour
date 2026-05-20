@@ -58,7 +58,7 @@ $used_date  = arr('used_date');
 $amount     = arr('amount');
 $note       = arr('note');
 
-// 전체정산 메모(guide_setmaster.g_memo 컬럼)
+// 전체정산 메모(guide_setmaster.guide_memo 컬럼)
 $guide_memo = val('guide_memo', '');
 
 $settle_code_p = val('settle_code');
@@ -95,7 +95,7 @@ if ($mode == 'save') {
             guide_etcamt,
             reg_status,
             reg_user,
-            g_memo,
+            guide_memo,
             wdate
           ) VALUES (
             '".esc($guide_code)."',
@@ -297,7 +297,7 @@ if ($mode == 'save') {
 
     // ✅ save 모드에서도 메모 업데이트(원본 유지하되 mysql_*로 교체)
     $guide_memo_u = isset($_POST['guide_memo']) ? esc($_POST['guide_memo']) : '';
-    mysql_query("UPDATE guide_setmaster SET g_memo='".$guide_memo_u."' WHERE settle_code='".esc($settle_code_p)."'");
+    mysql_query("UPDATE guide_setmaster SET guide_memo='".$guide_memo_u."' WHERE settle_code='".esc($settle_code_p)."'");
 
 } else if ($mode == 'delete') {
 
@@ -314,7 +314,7 @@ if ($mode == 'save') {
     mysql_query("UPDATE guide_setmaster
                     SET report_date = NOW(),
                         reg_status = 'COMPLETE',
-                        g_memo = '".esc($guide_memo)."'
+                        guide_memo = '".esc($guide_memo)."'
                   WHERE settle_code = '".esc($settle_code_p)."'");
 
 } else if ($mode == 'repcan') {
@@ -325,7 +325,7 @@ if ($mode == 'save') {
                         reg_status='',
                         finance_date='',
                         finance_st='',
-                        g_memo='".esc($guide_memo)."'
+                        guide_memo='".esc($guide_memo)."'
                   WHERE settle_code = '".esc($settle_code_p)."'");
 
 } else if ($mode == 'finance') {
@@ -335,7 +335,7 @@ if ($mode == 'save') {
     mysql_query("UPDATE guide_setmaster
                     SET finance_st = 'V',
                         finance_date = NOW(),
-                        g_memo = '".$guide_memo_f."'
+                        guide_memo = '".$guide_memo_f."'
                   WHERE settle_code = '".esc($settle_code_p)."'");
 
     /* =======================
@@ -411,7 +411,7 @@ if ($mode == 'save') {
 
     mysql_query("UPDATE guide_setmaster
                     SET ceo_st = 'V',
-                        g_memo = '".esc($guide_memo)."'
+                        guide_memo = '".esc($guide_memo)."'
                   WHERE settle_code = '".esc($settle_code_p)."'");
 }
 

@@ -165,6 +165,7 @@
 						<button type="button" class="btn btn-xs btn-default js-save" <?=$disabled?>>저장</button>
 						<button type="button" class="btn btn-xs btn-default js-delete" <?=$disabled?>>삭제</button>
                         <button type="button" class="btn btn-xs btn-default js-print" >프린트</button>
+                        <a href="guide_cal_m_excel.php?number=<?=urlencode($_GET['number'])?>" class="btn btn-xs btn-success">Excel</a>
                         
 					</div>
 					<div class="col-sm-3 text-right">
