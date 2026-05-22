@@ -71,7 +71,7 @@ if ($mode == 'save') {
         $mt  = microtime(true);
         $sec = floor($mt);
         $hs  = sprintf("%03d", ($mt - $sec) * 1000);
-        $guide_code = "SETTLE-" . date("His", $sec) . $hs;
+        $guide_code = "PSETTLE-" . date("His", $sec) . $hs;
     } else {
         $guide_code = $settle_code_p;
     }

@@ -1,5 +1,6 @@
 <?php
 include "../include/inc_base.php";
+include __DIR__ . "/newsletter_worker_launch.php";
 
 header('Content-Type: application/json');
 
@@ -76,6 +77,8 @@ if(mysql_query($insert_queue, $dbConn)) {
                          ('$queue_id', '$email', '$name')";
         mysql_query($insert_detail, $dbConn);
     }
+
+    newsletterStartWorker(array($queue_id));
     
     echo json_encode([
         'success' => true, 

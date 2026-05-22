@@ -70,17 +70,18 @@ upload/
 uploads/
 upload_image*/
 product_img/
-email_hist/
 file-manager/uploaded/
 news/uploaded/
 news/img_*/
 sound/
 video/
-img/cache/
+
 
 # ===== Logs / Temp =====
 *.log
 nohup.out
+email-sys/newsletter_logs/
+*.lock
 *.tmp
 tmp.html
 tmp/

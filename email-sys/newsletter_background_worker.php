@@ -5,11 +5,15 @@
 ini_set('max_execution_time', 0); // 시간 제한 없음
 ini_set('memory_limit', '256M');
 
-include "../include/inc_base.php";
+include __DIR__ . "/../include/inc_base.php";
+
+$active_queue_id = 0;
+$active_detail_id = 0;
+$lock_fp = null;
 
 // 로그 함수
 function writeLog($message) {
-    $log_file = __DIR__ . './newsletter_logs/newsletter_' . date('Y-m-d') . '.log';
+    $log_file = __DIR__ . '/newsletter_logs/newsletter_' . date('Y-m-d') . '.log';
     $log_dir = dirname($log_file);
     
     if (!file_exists($log_dir)) {
@@ -20,6 +24,135 @@ function writeLog($message) {
     file_put_contents($log_file, "[$timestamp] $message\n", FILE_APPEND | LOCK_EX);
     echo "[$timestamp] $message\n";
 }
+
+function newsletterWorkerSelectedQueueIds() {
+    global $argv;
+
+    $queue_ids = array();
+    if (!is_array($argv)) {
+        return array();
+    }
+
+    foreach ($argv as $arg) {
+        if (strpos($arg, '--queue_ids=') === 0) {
+            $raw_ids = explode(',', substr($arg, strlen('--queue_ids=')));
+            foreach ($raw_ids as $id) {
+                $id = trim($id);
+                if ($id !== '' && ctype_digit($id) && intval($id) > 0) {
+                    $queue_ids[intval($id)] = intval($id);
+                }
+            }
+        }
+    }
+
+    return array_values($queue_ids);
+}
+
+function newsletterGetQueueCounts($queue_id, $total_count = null) {
+    global $dbConn;
+
+    $queue_id = mysql_real_escape_string($queue_id);
+
+    if ($total_count === null) {
+        $total_qry = "SELECT total_recipients FROM newsletter_queue WHERE seq_no = '$queue_id'";
+        $total_rst = mysql_query($total_qry, $dbConn);
+        $total_row = $total_rst ? mysql_fetch_assoc($total_rst) : null;
+        $total_count = $total_row ? intval($total_row['total_recipients']) : 0;
+    }
+
+    if ($total_count <= 0) {
+        $total_rst = mysql_query("SELECT COUNT(*) AS cnt FROM newsletter_send_details WHERE queue_id = '$queue_id'", $dbConn);
+        $total_row = $total_rst ? mysql_fetch_assoc($total_rst) : null;
+        $total_count = $total_row ? intval($total_row['cnt']) : 0;
+    }
+
+    $sent_rst = mysql_query("SELECT COUNT(*) AS cnt FROM newsletter_send_details WHERE queue_id = '$queue_id' AND send_status = 'SENT'", $dbConn);
+    $sent_row = $sent_rst ? mysql_fetch_assoc($sent_rst) : null;
+    $sent_count = $sent_row ? intval($sent_row['cnt']) : 0;
+
+    $failed_rst = mysql_query("SELECT COUNT(*) AS cnt FROM newsletter_send_details WHERE queue_id = '$queue_id' AND send_status = 'FAILED'", $dbConn);
+    $failed_row = $failed_rst ? mysql_fetch_assoc($failed_rst) : null;
+    $failed_count = $failed_row ? intval($failed_row['cnt']) : 0;
+
+    $pending_rst = mysql_query("SELECT COUNT(*) AS cnt FROM newsletter_send_details WHERE queue_id = '$queue_id' AND send_status = 'PENDING'", $dbConn);
+    $pending_row = $pending_rst ? mysql_fetch_assoc($pending_rst) : null;
+    $pending_count = $pending_row ? intval($pending_row['cnt']) : 0;
+
+    $processed = $sent_count + $failed_count;
+    $progress = ($total_count > 0) ? round(($processed / $total_count) * 100, 2) : 100;
+    if ($progress > 100) {
+        $progress = 100;
+    }
+
+    return array(
+        'total' => $total_count,
+        'sent' => $sent_count,
+        'failed' => $failed_count,
+        'pending' => $pending_count,
+        'processed' => $processed,
+        'progress' => $progress
+    );
+}
+
+function newsletterUpdateQueueProgress($queue_id, $total_count = null) {
+    global $dbConn;
+
+    $counts = newsletterGetQueueCounts($queue_id, $total_count);
+    $queue_id = mysql_real_escape_string($queue_id);
+
+    $update_progress = "UPDATE newsletter_queue SET 
+                       sent_count = '{$counts['sent']}', 
+                       failed_count = '{$counts['failed']}', 
+                       progress_percent = '{$counts['progress']}' 
+                       WHERE seq_no = '$queue_id'";
+    mysql_query($update_progress, $dbConn);
+
+    return $counts;
+}
+
+function newsletterGetQueueStatus($queue_id) {
+    global $dbConn;
+    $queue_id = mysql_real_escape_string($queue_id);
+    $rst = mysql_query("SELECT status FROM newsletter_queue WHERE seq_no = '$queue_id'", $dbConn);
+    $row = $rst ? mysql_fetch_assoc($rst) : null;
+    return $row ? $row['status'] : '';
+}
+
+register_shutdown_function(function() {
+    global $dbConn, $active_queue_id, $active_detail_id, $lock_fp;
+
+    $error = error_get_last();
+    if ($error && in_array($error['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR))) {
+        $error_msg = mysql_real_escape_string('Worker stopped: ' . $error['message']);
+
+        if ($active_detail_id) {
+            $detail_id = mysql_real_escape_string($active_detail_id);
+            mysql_query("UPDATE newsletter_send_details SET 
+                        send_status = 'FAILED',
+                        error_message = '$error_msg',
+                        sent_at = NOW()
+                        WHERE seq_no = '$detail_id' AND send_status = 'PENDING'", $dbConn);
+        }
+
+        if ($active_queue_id && newsletterGetQueueStatus($active_queue_id) !== 'STOPPED') {
+            $counts = newsletterUpdateQueueProgress($active_queue_id);
+            $queue_id = mysql_real_escape_string($active_queue_id);
+            $status = ($counts['pending'] > 0) ? 'WAITING' : (($counts['sent'] > 0) ? 'COMPLETED' : 'FAILED');
+            $completed_sql = ($counts['pending'] > 0) ? "completed_at = completed_at" : "completed_at = NOW()";
+            mysql_query("UPDATE newsletter_queue SET 
+                        status = '$status',
+                        $completed_sql
+                        WHERE seq_no = '$queue_id'", $dbConn);
+        }
+
+        writeLog($error_msg);
+    }
+
+    if (is_resource($lock_fp)) {
+        flock($lock_fp, LOCK_UN);
+        fclose($lock_fp);
+    }
+});
 
 function newsletterSafeMailSend($to_email, $subject, $content, $attachment1, $attachment2) {
     $to_email = trim($to_email);
@@ -53,11 +186,35 @@ function newsletterSafeMailSend($to_email, $subject, $content, $attachment1, $at
 writeLog("뉴스레터 백그라운드 워커 시작");
 
 // 대기중인 큐 조회
+$lock_file = __DIR__ . '/newsletter_logs/newsletter_worker.lock';
+$lock_fp = fopen($lock_file, 'c');
+if (!$lock_fp || !flock($lock_fp, LOCK_EX | LOCK_NB)) {
+    writeLog("newsletter worker is already running.");
+    exit;
+}
+ftruncate($lock_fp, 0);
+fwrite($lock_fp, getmypid() . ' ' . date('Y-m-d H:i:s') . "\n");
+
+$selected_queue_ids = newsletterWorkerSelectedQueueIds();
+$selected_queue_sql = '';
+if (count($selected_queue_ids) > 0) {
+    $selected_queue_sql = " AND q.seq_no IN (" . implode(',', $selected_queue_ids) . ")";
+    writeLog("Selected queues: " . implode(',', $selected_queue_ids));
+}
+
+$worker_loop_selected = count($selected_queue_ids) > 0;
+
+while (true) {
 $qry = "SELECT q.*, n.title, n.subject, n.content ,n.main_image
         FROM newsletter_queue q 
         LEFT JOIN newsletter_templates n ON q.newsletter_id = n.seq_no 
-        WHERE q.status = 'WAITING' 
-        ORDER BY q.created_at ASC 
+        WHERE q.status IN ('WAITING', 'PROCESSING')
+          $selected_queue_sql
+          AND EXISTS (
+              SELECT 1 FROM newsletter_send_details d 
+              WHERE d.queue_id = q.seq_no AND d.send_status = 'PENDING'
+          )
+        ORDER BY CASE WHEN q.status = 'PROCESSING' THEN 0 ELSE 1 END, q.created_at ASC 
         LIMIT 1";
 
 $rst = mysql_query($qry, $dbConn);
@@ -70,6 +227,7 @@ if(mysql_num_rows($rst) == 0) {
 $queue = mysql_fetch_assoc($rst);
 $queue_id = $queue['seq_no'];
 $newsletter_id = $queue['newsletter_id'];
+$active_queue_id = $queue_id;
 
 writeLog("큐 처리 시작: Queue ID $queue_id, Newsletter ID $newsletter_id, Title: {$queue['title']}");
 
@@ -86,14 +244,25 @@ $qry_details = "SELECT * FROM newsletter_send_details
                 ORDER BY seq_no ASC";
 $rst_details = mysql_query($qry_details, $dbConn);
 
-$sent_count = 0;
-$failed_count = 0;
-$total_count = mysql_num_rows($rst_details);
+$counts = newsletterUpdateQueueProgress($queue_id, intval($queue['total_recipients']));
+$sent_count = $counts['sent'];
+$failed_count = $counts['failed'];
+$total_count = $counts['total'];
 
 writeLog("총 발송 대상: $total_count 명");
 
+$stopped = false;
+
 while($detail = mysql_fetch_assoc($rst_details)) {
+    // 중지 요청 확인 (현재 큐 상태 체크) — 외부에서 STOPPED 로 변경되면 즉시 발송 중단
+    if (newsletterGetQueueStatus($queue_id) === 'STOPPED') {
+        $stopped = true;
+        writeLog("중지 요청 감지: Queue ID $queue_id 발송을 중단합니다.");
+        break;
+    }
+
     $detail_id = $detail['seq_no'];
+    $active_detail_id = $detail_id;
     $to_email = trim($detail['recipient_email']);
     $send_error = '';
     $to_name = $detail['recipient_name'] ?: '고객님';
@@ -158,20 +327,16 @@ while($detail = mysql_fetch_assoc($rst_details)) {
     }
     
     // 진행률 업데이트
-    $processed = $sent_count + $failed_count;
-    $progress = round(($processed / $total_count) * 100, 2);
-    
-    $update_progress = "UPDATE newsletter_queue SET 
-                       sent_count = '$sent_count', 
-                       failed_count = '$failed_count', 
-                       progress_percent = '$progress' 
-                       WHERE seq_no = '$queue_id'";
-    mysql_query($update_progress, $dbConn);
+    $counts = newsletterUpdateQueueProgress($queue_id, $total_count);
+    $sent_count = $counts['sent'];
+    $failed_count = $counts['failed'];
+    $processed = $counts['processed'];
+    $progress = $counts['progress'];
     
 	$update_mailing = "UPDATE prt_mlist SET 
                          chk_send = '1'
-                       WHERE mail_addr = '$to_email'";
-    mysql_query($update_mailing, $dbConn);
+                       WHERE mail_addr = '" . mysql_real_escape_string($to_email) . "'";
+    try { mysql_query($update_mailing, $dbConn); } catch (Throwable $e) { writeLog('prt_mlist update skipped: ' . $e->getMessage()); }
 	
     // 과부하 방지를 위한 지연 (100ms)
     usleep(150000);
@@ -180,15 +345,31 @@ while($detail = mysql_fetch_assoc($rst_details)) {
     if($processed % 20 == 0) {
         writeLog("진행률: $progress% ($processed/$total_count)");
     }
+
+    $active_detail_id = 0;
 }
+
+$counts = newsletterUpdateQueueProgress($queue_id, $total_count);
+$sent_count = $counts['sent'];
+$failed_count = $counts['failed'];
+
+if ($stopped) {
+    // 중지됨: 상태를 STOPPED 로 유지하고 진행 카운트만 갱신 (completed_at 미설정 -> 재개 가능)
+    mysql_query("UPDATE newsletter_queue SET
+                 status = 'STOPPED',
+                 sent_count = '$sent_count',
+                 failed_count = '$failed_count'
+                 WHERE seq_no = '$queue_id'", $dbConn);
+    writeLog("발송 중지됨: 성공 {$sent_count}건, 실패 {$failed_count}건, 남은 {$counts['pending']}건 (재개 가능)");
+} else {
 
 // 최종 상태 업데이트
 if($failed_count == 0) {
     $final_status = 'COMPLETED';
-    writeLog("발송 완료: 모든 이메일이 성공적으로 발송되었습니다. (총 $sent_count건)");
+    writeLog("발송 완료: 모든 이메일이 성공적으로 발송되었습니다. (총 {$sent_count}건)");
 } else if($sent_count > 0) {
     $final_status = 'COMPLETED';
-    writeLog("발송 완료: 성공 $sent_count건, 실패 $failed_count건");
+    writeLog("발송 완료: 성공 {$sent_count}건, 실패 {$failed_count}건");
 } else {
     $final_status = 'FAILED';
     writeLog("발송 실패: 모든 이메일 발송이 실패했습니다.");
@@ -245,6 +426,14 @@ if($sent_count > 0) {
     } else {
         writeLog("news_hist 테이블 삽입 실패: " . mysql_error());
     }
+}
+
+} // end if (!$stopped)
+
+$active_queue_id = 0;
+if (!$worker_loop_selected) {
+    break;
+}
 }
 
 writeLog("뉴스레터 백그라운드 워커 완료");
