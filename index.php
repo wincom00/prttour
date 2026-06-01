@@ -335,7 +335,7 @@
 					<table class="table table-borderless">
 						<tr>
 							<td class="text-left index-border-bottom index_table_color"  bgcolor="#2e6da4"><strong>사내공지<strong></td>
-							<td class="text-right index-border-bottom index_table_color" bgcolor="#2e6da4"><strong><a href="http://www.myprt.online/board_list.php?division=8&pdx=1&sub=15&table_id=15">더보기</a><strong></td>
+							<td class="text-right index-border-bottom index_table_color" bgcolor="#2e6da4"><strong><a href="board_list.php?division=8&pdx=1&sub=15&table_id=15">더보기</a><strong></td>
 						</tr>
 						<?php printBoard('15'); ?>
 						
