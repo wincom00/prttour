@@ -1029,14 +1029,18 @@
 
 	    
 		function printCompanySelect($rand_id){
-	
+
 			    global $dbConn;
 
-				$qry1 = "select * from member_list where division = 'comp' && del_yn  ='N'  order by company_area,kor_name asc";
+				// 발권처(issue_airline='YES') 업체도 지불/수금업체 목록에 표시한다.
+				// 단, 수금/지급 맥락에서는 '발권업체'가 아니라 수금/지급업체이므로 발권 표기를 하지 않는다.
+				// (항공 발권처 드롭다운 printRandSelectAirlie() 의 발권업체와 역할이 구분됨)
+				$qry1 = "select * from member_list where division = 'comp' && del_yn  ='N'
+						 order by company_area,kor_name asc";
 				$rst1 = mysql_query($qry1);
 
 				while($row1 = mysql_fetch_assoc($rst1)){
-					
+
 					$company_area = codebaseName($row1['company_area']);
 
 					if($rand_id == $row1['userid'])
@@ -1047,7 +1051,7 @@
 					{
 						$content .= "<option value='{$row1['userid']}'>[{$company_area['comment']}] {$row1['kor_name']} ({$row1['userid']})";
 					}
-					
+
 
 				}
 

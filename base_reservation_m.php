@@ -2646,6 +2646,12 @@
 								$cruiseRows = getCruiseinfoList($estimateCode);
 							}
 							$cruiseHasRows = (count($cruiseRows) > 0);
+							$totamtcruise = 0;
+							foreach ($cruiseRows as $cr) {
+								if (isset($cr['c_sale_amt'])) {
+									$totamtcruise += floatval(str_replace(',', '', $cr['c_sale_amt']));
+								}
+							}
 							if (count($cruiseRows) == 0) {
 								$cruiseRows[] = array();
 							}
@@ -2707,7 +2713,7 @@
 											<td><input type="text" name="c_pax[]" class="inpubase sm1" value="<?=$c_pax?>" onBlur="javascript:cruisecalc()"/></td>
 											<td class="active text-center formHeader">단가</td>
 											<td><input type="text" name="c_unit_price[]" class="inpubase sm1" value="<?=$c_unit_price?>" onBlur="javascript:cruisecalc()"/></td>
-											<td class="active text-center formHeader">세금/항구비</td>
+											<td class="active text-center formHeader">세금/항구비<br /><h6>1인 기준</h6></td>
 											<td><input type="text" name="c_tax_port_fee[]" class="inpubase sm1" value="<?=$c_tax_port_fee?>" onBlur="javascript:cruisecalc()"/></td>
 											<td class="active text-center formHeader">크루즈결제방법</td>
 											<td>
@@ -2716,6 +2722,8 @@
 													<option value="2" <?php if($c_settle_type == 2) echo "selected"; ?>>CARD</option>
 													<option value="3" <?php if($c_settle_type == 3) echo "selected"; ?>>은행송금/Zelle</option>
 													<option value="4" <?php if($c_settle_type == 4) echo "selected"; ?>>웹결제</option>
+													<option value="5" <?php if($c_settle_type == 5) echo "selected"; ?>>지사단말기</option>
+													<option value="6" <?php if($c_settle_type == 6) echo "selected"; ?>>크루즈시스템</option>
 												</select>
 											</td>
 											<td class="active text-center formHeader">크루즈업체</td>
@@ -3448,7 +3456,7 @@
 						</tr>
 						<tr>
 							<td colspan="2" class="active text-center formHeader">크루즈총금액</td>
-							<td colspan="14"> U$ <span id="totcruisedisplay">0.00</span><input type="hidden" name="tot_cruise_amt" id="tot_cruise_amt" value="0.00"/></td>
+							<td colspan="14"> U$ <span id="totcruisedisplay"><?=number_format(isset($totamtcruise) ? $totamtcruise : 0, 2)?></span><input type="hidden" name="tot_cruise_amt" id="tot_cruise_amt" value="<?=number_format(isset($totamtcruise) ? $totamtcruise : 0, 2)?>"/></td>
 						</tr>
 						<tr>
 							<td colspan="2" class="active text-center formHeader">총판매가</td>
@@ -3670,6 +3678,9 @@
 																		case "ypsys" : 
 																		    $cappay = "YP시스템";
 																		    break; 
+																		case "crsys" : 
+																		    $cappay = " 크루즈시스템";
+																		    break; 
 																		case "gift" : 
 																		    $cappay = "상품권및기타";
 																		    break; 
@@ -3806,6 +3817,7 @@
 															<option value="banktransfer">은행송금</option>
 															<option value="airsys">항공시스템</option>
 															<option value="ypsys">YP시스템</option>
+															<option value="crsys">크루즈시스템</option>
 															<option value="fundtransfer">금액이동</option>
 															<option value="gift">상품권및기타</option>
 
@@ -4046,7 +4058,11 @@
 																		    break; 
 																		case "ypsys" : 
 																		    $cappay = "YP시스템";
-																		    break; 																			
+																		    break; 
+																		case "crsys" : 
+																		    $cappay = "크루즈시스템";
+																		    break; 
+																					
 																		case "gift" : 
 																		    $cappay = "상품권및기타";
 																		    break;
@@ -4145,6 +4161,7 @@
 															<option value="banktransfer">은행송금</option>
 															<option value="airsys">항공시스템</option>
 															<option value="ypsys">YP시스템</option>
+															<option value="crsys">크루즈시스템</option>
 															<option value="fundtransfer">금액이동</option>
 															<option value="gift">상품권및기타</option>
 														</select>							
@@ -4167,7 +4184,7 @@
 												</tr>
 												<tr>
 													<td colspan="2" class="active text-center formHeader">환불메모</td>
-													<td colspan="6">
+													<td colspan="6">		
 														<input type="text" class="form-control" name="dmemo2" placeholder="결제메모">
 													</td>
 													<td colspan="2" class="active text-center formHeader">환불신청자</td>
@@ -5129,7 +5146,7 @@
 						unit = parseFloat($tr.find('input[name="c_unit_price[]"]').val()) || 0,
 						tax = parseFloat($tr.find('input[name="c_tax_port_fee[]"]').val()) || 0,
 						sale = parseFloat($tr.find('input[name="c_sale_amt[]"]').val()) || 0,
-						net = (unit * pax) + tax,
+						net = (unit + tax) * pax,
 						profit = sale - net;
 
 					$tr.find('input[name="c_net_amt[]"]').val(net.toFixed(2));

@@ -67,47 +67,16 @@ try {
 
     // 중복 실행은 newsletter_background_worker.php 의 lock 에서 차단한다.
 
-    // PHP 실행파일 경로
-    $is_win = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN');
-    $php_path = $is_win ? (PHP_BINDIR . DIRECTORY_SEPARATOR . 'php.exe') : '/usr/bin/php';
-    if (!@file_exists($php_path)) {
-        $php_path = (defined('PHP_BINARY') && PHP_BINARY) ? PHP_BINARY : 'php';
-    }
-    $worker_script = __DIR__ . '/newsletter_background_worker.php';
-    $worker_args = '';
-    if (count($selected_queue_ids) > 0) {
-        $worker_args = ' --queue_ids=' . implode(',', $selected_queue_ids);
-    }
-
-    // exec/popen 이 disable_functions 로 막힌 호스트에서도 안전하게 동작하도록 가드한다.
-    // (즉시 실행이 불가능해도 큐는 WAITING 으로 등록되어 서버 스케줄러(크론)가 곧 집어간다.)
-    $disabled = array_map('trim', explode(',', strtolower((string) ini_get('disable_functions'))));
-    $worker_launched = false;
-
-    if ($is_win) {
-        if (function_exists('popen') && !in_array('popen', $disabled, true)) {
-            $cmd = 'cmd /C start "" /B "' . $php_path . '" "' . $worker_script . '"' . $worker_args . ' > nul 2>&1';
-            newsletterTriggerLog('run: ' . $cmd);
-            $h = @popen($cmd, 'r');
-            if (is_resource($h)) { pclose($h); $worker_launched = true; }
-        }
-    } else {
-        $cmd = escapeshellarg($php_path) . ' ' . escapeshellarg($worker_script) . $worker_args . ' > /dev/null 2>&1 &';
-        if (function_exists('exec') && !in_array('exec', $disabled, true)) {
-            newsletterTriggerLog('run(exec): ' . $cmd);
-            @exec($cmd);
-            $worker_launched = true;
-        } elseif (function_exists('shell_exec') && !in_array('shell_exec', $disabled, true)) {
-            newsletterTriggerLog('run(shell_exec): ' . $cmd);
-            @shell_exec($cmd);
-            $worker_launched = true;
-        }
-    }
+    // 크론 없이 서버에서 직접 분리된 백그라운드 프로세스로 워커를 실행한다.
+    // (Windows/Linux 모두 newsletterStartWorker 가 처리한다.)
+    $worker_launched = newsletterStartWorker($selected_queue_ids);
 
     if ($worker_launched) {
         newsletterJsonOut(array('success' => true, 'message' => '백그라운드 워커가 시작되었습니다.'));
+    } elseif (newsletterIsSystemStopped()) {
+        newsletterJsonOut(array('success' => false, 'message' => '시스템이 중지 상태입니다. 먼저 "시스템 재개"를 눌러 주세요.'));
     } else {
-        newsletterJsonOut(array('success' => true, 'message' => '발송 대기열에 등록되었습니다. 잠시 후 자동으로 발송이 시작됩니다.'));
+        newsletterJsonOut(array('success' => false, 'message' => '백그라운드 워커 실행에 실패했습니다(셸 분리 및 서버 루프백 호출 모두 실패). 트리거 로그를 확인해 주세요.'));
     }
 
 } catch (Throwable $e) {

@@ -208,7 +208,7 @@
     // [보조 함수] 테이블 행 출력 (중복 코드 제거용)
     // =========================================================================
     function renderRow($row1) {
-        global $division, $pdx, $sub, $k;
+        global $division, $pdx, $sub, $k, $startDate1, $endDate1;
 
         $cinfo2 = codebaseName($row1['c_code2']);
 
@@ -252,18 +252,18 @@
         echo "<tr class='arhef'>
                     <td> <input type='checkbox' name='seqNo[]' value='$k' /></td>
                     <td align='center'>
-                        <a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&st={$row1['stDate']}&pcode={$row1['p_code']}'>$gCodeDisplay</a>
+                        <a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&startDate1=$startDate1&endDate1=$endDate1&st={$row1['stDate']}&pcode={$row1['p_code']}'>$gCodeDisplay</a>
                         <input type='hidden' name='gcode[$k]' value='{$row1['grand_eCode']}'>
                     </td>
-                    <td><a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&st={$row1['stDate']}&pcode={$row1['p_code']}'>{$cinfo2['comment']}</a></td>
-                    <td><a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&st={$row1['stDate']}&pcode={$row1['p_code']}'>{$row1['p_code']}</a></td>
+                    <td><a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&startDate1=$startDate1&endDate1=$endDate1&st={$row1['stDate']}&pcode={$row1['p_code']}'>{$cinfo2['comment']}</a></td>
+                    <td><a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&startDate1=$startDate1&endDate1=$endDate1&st={$row1['stDate']}&pcode={$row1['p_code']}'>{$row1['p_code']}</a></td>
                     <td>
-                        <a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&st={$row1['stDate']}&pcode={$row1['p_code']}'>{$row1['p_name']}</a>
+                        <a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&startDate1=$startDate1&endDate1=$endDate1&st={$row1['stDate']}&pcode={$row1['p_code']}'>{$row1['p_name']}</a>
                         <input type='hidden' name='pcode[$k]' value='{$row1['p_code']}'>
                         <input type='hidden' name='pname[$k]' value='{$row1['p_name']}'>
                     </td>
                     <td align='center'>
-                        <a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&st={$row1['stDate']}&pcode={$row1['p_code']}'>{$row1['stDate']} ($sweekday)</a>
+                        <a href='eventbs_m.php?division=$division&pdx=$pdx&sub=$sub&startDate1=$startDate1&endDate1=$endDate1&st={$row1['stDate']}&pcode={$row1['p_code']}'>{$row1['stDate']} ($sweekday)</a>
                         <input type='hidden' name='sdate[$k]' id='sdate' value='{$row1['stDate']}'>
                     </td>
                     <td align='center'><input type='hidden' name='acnt[$k]' value='{$row1['p_cnt']}'>{$row1['p_cnt']}</td>

@@ -9,7 +9,10 @@ include __DIR__ . "/../include/inc_base.php";
 
 $active_queue_id = 0;
 $active_detail_id = 0;
-$lock_fp = null;
+$lock_fp = null;        // (구버전 호환용, 미사용)
+$lock_dir = null;       // 원자적 mkdir 락 디렉터리
+$lock_owned = false;    // 이 프로세스가 락을 소유했는지
+$lock_stale_sec = 240;  // 하트비트(디렉터리 mtime) 미갱신이 이 시간을 넘으면 죽은 워커로 간주해 회수
 
 // 로그 함수
 function writeLog($message) {
@@ -29,18 +32,29 @@ function newsletterWorkerSelectedQueueIds() {
     global $argv;
 
     $queue_ids = array();
-    if (!is_array($argv)) {
-        return array();
+
+    // 1) CLI 인자: --queue_ids=1,2,3
+    if (is_array($argv)) {
+        foreach ($argv as $arg) {
+            if (strpos($arg, '--queue_ids=') === 0) {
+                $raw_ids = explode(',', substr($arg, strlen('--queue_ids=')));
+                foreach ($raw_ids as $id) {
+                    $id = trim($id);
+                    if ($id !== '' && ctype_digit($id) && intval($id) > 0) {
+                        $queue_ids[intval($id)] = intval($id);
+                    }
+                }
+            }
+        }
     }
 
-    foreach ($argv as $arg) {
-        if (strpos($arg, '--queue_ids=') === 0) {
-            $raw_ids = explode(',', substr($arg, strlen('--queue_ids=')));
-            foreach ($raw_ids as $id) {
-                $id = trim($id);
-                if ($id !== '' && ctype_digit($id) && intval($id) > 0) {
-                    $queue_ids[intval($id)] = intval($id);
-                }
+    // 2) 웹 호출(서버 백그라운드 실행): ?queue_ids=1,2,3
+    if (count($queue_ids) === 0 && isset($_GET['queue_ids'])) {
+        $raw = is_array($_GET['queue_ids']) ? $_GET['queue_ids'] : explode(',', (string) $_GET['queue_ids']);
+        foreach ($raw as $id) {
+            $id = trim($id);
+            if ($id !== '' && ctype_digit($id) && intval($id) > 0) {
+                $queue_ids[intval($id)] = intval($id);
             }
         }
     }
@@ -119,7 +133,7 @@ function newsletterGetQueueStatus($queue_id) {
 }
 
 register_shutdown_function(function() {
-    global $dbConn, $active_queue_id, $active_detail_id, $lock_fp;
+    global $dbConn, $active_queue_id, $active_detail_id, $lock_dir, $lock_owned;
 
     $error = error_get_last();
     if ($error && in_array($error['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR))) {
@@ -148,9 +162,9 @@ register_shutdown_function(function() {
         writeLog($error_msg);
     }
 
-    if (is_resource($lock_fp)) {
-        flock($lock_fp, LOCK_UN);
-        fclose($lock_fp);
+    // 락 디렉터리 해제 (우리가 소유한 경우에만)
+    if ($lock_owned && $lock_dir && is_dir($lock_dir)) {
+        @rmdir($lock_dir);
     }
 });
 
@@ -185,15 +199,27 @@ function newsletterSafeMailSend($to_email, $subject, $content, $attachment1, $at
 
 writeLog("뉴스레터 백그라운드 워커 시작");
 
-// 대기중인 큐 조회
-$lock_file = __DIR__ . '/newsletter_logs/newsletter_worker.lock';
-$lock_fp = fopen($lock_file, 'c');
-if (!$lock_fp || !flock($lock_fp, LOCK_EX | LOCK_NB)) {
+// 중복 실행 방지 락 — flock 대신 "원자적 mkdir" 사용 (일부 호스트/NFS 에서 flock 미동작 문제 회피).
+// 살아있는 워커는 루프마다 락 디렉터리 mtime 을 갱신(하트비트)하므로,
+// mtime 이 $lock_stale_sec 를 넘으면 죽은/멈춘 워커로 보고 락을 회수한다.
+$lock_dir  = __DIR__ . '/newsletter_logs/newsletter_worker.lock.d';
+$lock_pidf = __DIR__ . '/newsletter_logs/newsletter_worker.lock'; // 상태표시(UI)용 PID 파일
+
+$lock_owned = @mkdir($lock_dir, 0755);
+if (!$lock_owned) {
+    $mt = @filemtime($lock_dir);
+    $age = ($mt !== false) ? (time() - $mt) : -1;
+    if ($age < 0 || $age > $lock_stale_sec) {
+        writeLog("stale lock 감지 (age={$age}s) — 회수합니다.");
+        @rmdir($lock_dir);
+        $lock_owned = @mkdir($lock_dir, 0755);
+    }
+}
+if (!$lock_owned) {
     writeLog("newsletter worker is already running.");
     exit;
 }
-ftruncate($lock_fp, 0);
-fwrite($lock_fp, getmypid() . ' ' . date('Y-m-d H:i:s') . "\n");
+@file_put_contents($lock_pidf, getmypid() . ' ' . date('Y-m-d H:i:s') . "\n", LOCK_EX);
 
 $selected_queue_ids = newsletterWorkerSelectedQueueIds();
 $selected_queue_sql = '';
@@ -254,6 +280,9 @@ writeLog("총 발송 대상: $total_count 명");
 $stopped = false;
 
 while($detail = mysql_fetch_assoc($rst_details)) {
+    // 락 하트비트: 살아있음을 알려 다른 워커가 stale 로 회수하지 못하게 한다.
+    if ($lock_dir) { @touch($lock_dir); }
+
     // 중지 요청 확인 (현재 큐 상태 체크) — 외부에서 STOPPED 로 변경되면 즉시 발송 중단
     if (newsletterGetQueueStatus($queue_id) === 'STOPPED') {
         $stopped = true;

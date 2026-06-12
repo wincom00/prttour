@@ -31,6 +31,18 @@
 	$disinfo = codebaseName($revInfo['dis_code']);
 	$disamt = getReserveSum($r_code);
 	$airamt = getAirlineSum($r_code);
+	// 항공 인보이스내역 (PNR 목록)
+	$airList = array();
+	$air_rst = mysql_query("select * from reserve_airline_pnr where reserveCode = '$r_code'");
+	while ($air_rst && ($air_row = mysql_fetch_assoc($air_rst))) {
+		$airList[] = $air_row;
+	}
+	// 크루즈 인보이스내역 및 총금액
+	$cruiseList = function_exists('getCruiseinfoList') ? getCruiseinfoList($r_code) : array();
+	$cruisetot = 0;
+	foreach ($cruiseList as $cv) {
+		$cruisetot += floatval(str_replace(',', '', isset($cv['c_sale_amt']) ? $cv['c_sale_amt'] : 0));
+	}
 	$totamt = $revInfo['last_total'] ;//- $disamt[amt];
 	//$lasttot = $revInfo[last_sale] + $revInfo[last_add];
 	$lasttot = $revInfo['last_sale'];
@@ -518,6 +530,15 @@
 								<td style='text-align: center;border: 1px solid #aaa;'></td>
 								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?>  <?php echo number_format($airamt['samt'],2);?></td>
 							</tr>
+							<?php if ($cruisetot > 0) { ?>
+							<tr style="background: #fff;font-weight: 400;text-align: center;">
+								<td style='text-align: left;border: 1px solid #aaa;padding: 5px;'>크루즈금액</td>
+								<td style='text-align: center;border: 1px solid #aaa;'></td>
+								<td style='text-align: center;border: 1px solid #aaa;'></td>
+								<td style='text-align: center;border: 1px solid #aaa;'></td>
+								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?>  <?php echo number_format($cruisetot,2);?></td>
+							</tr>
+							<?php } ?>
 							<tr style="background: #fff;font-weight: 400;text-align: center;">
 								<td style='text-align: left;border: 1px solid #aaa;padding: 5px;'>추가금액</td>
 								<td style='text-align: center;border: 1px solid #aaa;'></td>
@@ -542,6 +563,78 @@
 
 						</tbody>
 					</table>
+					<?php if (count($airList) > 0) { ?>
+					<br />
+					<div class="row tour-details">
+						<div class="col-md-12 invoice-to">
+							<h2 class="invoice-to">항공내역 ㅣAirline Details</h2>
+						</div>
+					</div>
+					<table style='width: 100%;line-height: inherit;text-align: left;border: 1px solid #aaa;font-size: 13px;'>
+						<thead>
+							<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
+								<th style="border: 1px solid #aaa;">출발일<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Date</h6></th>
+								<th style="border: 1px solid #aaa;">구간<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Route</h6></th>
+								<th style="border: 1px solid #aaa;">편명<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Flight</h6></th>
+								<th style="border: 1px solid #aaa;">PNR / TICKET#</th>
+								<th style="border: 1px solid #aaa;">인원<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>PAX</h6></th>
+								<th style="border: 1px solid #aaa;">판매금액<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Amount</h6></th>
+							</tr>
+						</thead>
+						<tbody>
+						<?php foreach ($airList as $av) {
+							$a_route = trim($av['a_start_airport']) . (trim($av['a_stop_airport']) != "" ? " → " . $av['a_stop_airport'] : "");
+							$a_pnrtk = trim($av['a_pnr_number']) . (trim($av['a_tk_number']) != "" ? " / " . $av['a_tk_number'] : "");
+						?>
+							<tr style="background: #fff;font-weight: 400;text-align: center;">
+								<td style='text-align: center;border: 1px solid #aaa;padding: 5px;'><?=$av['a_airline_start']?></td>
+								<td style='text-align: center;border: 1px solid #aaa;'><?=$a_route?></td>
+								<td style='text-align: center;border: 1px solid #aaa;'><?=$av['a_airport_name']?></td>
+								<td style='text-align: center;border: 1px solid #aaa;'><?=$a_pnrtk?></td>
+								<td style='text-align: center;border: 1px solid #aaa;'><?=$av['a_airport_cnt']?></td>
+								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?> <?php echo number_format($av['a_airline_amt'],2);?></td>
+							</tr>
+						<?php } ?>
+						</tbody>
+					</table>
+					<?php } ?>
+					<?php if (count($cruiseList) > 0) { ?>
+					<br />
+					<div class="row tour-details">
+						<div class="col-md-12 invoice-to">
+							<h2 class="invoice-to">크루즈내역 ㅣCruise Details</h2>
+						</div>
+					</div>
+					<table style='width: 100%;line-height: inherit;text-align: left;border: 1px solid #aaa;font-size: 13px;'>
+						<thead>
+							<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
+								<th style="border: 1px solid #aaa;">출항/하선<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Sail / Return</h6></th>
+								<th style="border: 1px solid #aaa;">크루즈/선박<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Line / Ship</h6></th>
+								<th style="border: 1px solid #aaa;">출항/입항항구<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Ports</h6></th>
+								<th style="border: 1px solid #aaa;">객실/예약번호<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Room / Booking#</h6></th>
+								<th style="border: 1px solid #aaa;">인원<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>PAX</h6></th>
+								<th style="border: 1px solid #aaa;">판매금액<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Amount</h6></th>
+							</tr>
+						</thead>
+						<tbody>
+						<?php foreach ($cruiseList as $cv) {
+							$c_period = trim($cv['c_depart_date']) . (trim($cv['c_return_date']) != "" ? " ~ " . $cv['c_return_date'] : "");
+							$c_lineship = trim($cv['c_cruise_line']) . (trim($cv['c_ship_name']) != "" ? " / " . $cv['c_ship_name'] : "");
+							$c_ports = trim($cv['c_depart_port']) . (trim($cv['c_arrive_port']) != "" ? " → " . $cv['c_arrive_port'] : "");
+							$c_roombook = trim($cv['c_room_type']) . (trim($cv['c_book_no']) != "" ? " / " . $cv['c_book_no'] : "");
+						?>
+							<tr style="background: #fff;font-weight: 400;text-align: center;">
+								<td style='text-align: center;border: 1px solid #aaa;padding: 5px;'><?=$c_period?></td>
+								<td style='text-align: center;border: 1px solid #aaa;'><?=$c_lineship?></td>
+								<td style='text-align: center;border: 1px solid #aaa;'><?=$c_ports?></td>
+								<td style='text-align: center;border: 1px solid #aaa;'><?=$c_roombook?></td>
+								<td style='text-align: center;border: 1px solid #aaa;'><?=$cv['c_pax']?></td>
+								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?> <?php echo number_format($cv['c_sale_amt'],2);?></td>
+							</tr>
+						<?php } ?>
+						</tbody>
+					</table>
+					<?php } ?>
 					<br />
 					<div class="row tour-details">
 						<div class="col-md-12 invoice-to">
@@ -600,7 +693,11 @@
 													break;
 												case "ypsys" : 
 													$cappay = "YP시스템";
-													break;													
+													break;		
+																							
+												case "crsys" : 
+													$cappay = "크루즈시스템";
+													break;
 												case "gift" : 
 													$cappay = "상품권및기타";
 													break;

@@ -479,7 +479,7 @@ function pollSystemStatus() {
         if(res && res.success) {
             var badge = $('#systemCronBadge');
             if(res.cron_status === 'STOPPED') {
-                badge.removeClass('label-default label-success label-warning').addClass('label-danger').text('시스템 중지됨 (Cron 차단)');
+                badge.removeClass('label-default label-success label-warning').addClass('label-danger').text('시스템 중지됨');
                 $('#btnSysStop').hide();
                 $('#btnSysResume').show();
             } else {
@@ -496,7 +496,7 @@ function pollSystemStatus() {
 }
 
 function controlSystem(action) {
-    var msg = action === 'stop' ? '시스템 전체 워커 실행을 즉시 중지하고 크론 자동실행을 차단하시겠습니까?\n\n(현재 발송 중인 모든 작업이 중단됩니다)' : '시스템 자동실행(크론)을 다시 재개하시겠습니까?';
+    var msg = action === 'stop' ? '시스템 전체 워커 실행을 즉시 중지하고 새 발송 실행을 차단하시겠습니까?\n\n(현재 발송 중인 모든 작업이 중단됩니다)' : '시스템 실행 차단을 해제하시겠습니까?';
     if(!confirm(msg)) return;
     
     $.post('newsletter_cron_api.php', {action: action}, function(res) {

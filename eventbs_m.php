@@ -13,6 +13,10 @@
 		echo "<meta http-equiv='refresh' content='0; url=$goUrl_1'>";
 		exit;
     }
+	// 목록 조회기간(startDate1/endDate1) 유지: 링크(GET)→hidden(POST)으로 전달된 값을 그대로 사용
+	if ($startDate1 == "") { $startDate1 = $st; }
+	if ($endDate1 == "")   { $endDate1 = $st; }
+
 	$prodInfo = getProductMaster($pcode);
 	$pcnt = getReserveInfoCnt($pcode,$st);				
 	if ($pcnt['cnt'] =="") {
@@ -95,7 +99,7 @@
 			 
 			 
 			 Misc::jvAlert("저장 완료!!!");
-			 echo "<meta http-equiv='refresh' content='0; url=./eventbs_list.php?startDate1=$sdate&endDate1=$sdate&division=4&pdx=1&sub=10'>";
+			 echo "<meta http-equiv='refresh' content='0; url=./eventbs_list.php?startDate1=$startDate1&endDate1=$endDate1&division=4&pdx=1&sub=10'>";
           
 	     
 		} else {
@@ -123,7 +127,7 @@
 			 
 			
 			  Misc::jvAlert("저장 완료!!!");
-			  echo "<meta http-equiv='refresh' content='0; url=./eventbs_list.php?startDate1=$sdate&endDate1=$sdate&division=4&pdx=$pdx&sub=$sub'>";
+			  echo "<meta http-equiv='refresh' content='0; url=./eventbs_list.php?startDate1=$startDate1&endDate1=$endDate1&division=4&pdx=$pdx&sub=$sub'>";
 		}
 
 	} else if ($_POST['mode'] == "delete") {
@@ -131,7 +135,7 @@
 			
 			 $rst3 = mysql_query($qry3,$dbConn);
 			 Misc::jvAlert("삭제 완료!!!");
-			  echo "<meta http-equiv='refresh' content='0; url=./eventbs_list.php?startDate1=$sdate&endDate1=$sdate&division=4&pdx=$pdx&sub=$sub'>";
+			  echo "<meta http-equiv='refresh' content='0; url=./eventbs_list.php?startDate1=$startDate1&endDate1=$endDate1&division=4&pdx=$pdx&sub=$sub'>";
 	}
 ?>
 	<div id="contentwrapper" class="reservationDetailForm">
@@ -150,6 +154,8 @@
 				<input type="hidden" name="pcode" id="pcode" value="<?=$sctour['p_code']?>">
 				<input type="hidden" name="pname" id="pname" value='<?=$sctour['p_name']?>'>
 				<input type="hidden" name="sdate" id="sdate" value="<?=$sctour['stDate']?>">
+				<input type="hidden" name="startDate1" id="startDate1" value="<?=$startDate1?>">
+				<input type="hidden" name="endDate1" id="endDate1" value="<?=$endDate1?>">
 				<input type="hidden" name="rcnt" id="rcnt" value="<?=$pcnt['cnt']?>">
 				<input type="hidden" name="earr" id="earr" value="">
 				<div class="row no-nav">

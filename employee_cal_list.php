@@ -45,7 +45,7 @@
     }
 
     // ===== 리스트 출력(페이징 지원) =====
-    function printPay(&$totalCount = 0)
+    function printPay(&$totalCount = 0) {
         global $dbConn,$cname,$division,$pdx,$sub,$seldate,$startDate,$endDate,$employeeName,$searchpay,$searchMethod,$user_dbinfo,$page,$perPage,$offset,$productName;
 
         $where  = [];
@@ -171,6 +171,7 @@
                 case "fundtransfer":$cappay = "금액이동"; break;
                 case "airsys":      $cappay = "항공시스템"; break;
                 case "ypsys":       $cappay = "YP시스템"; break;
+                case "crsys":       $cappay = "크루즈시스템"; break;
                 case "gift":        $cappay = "상품권및기타"; break;
                 default:            $cappay = "";
             }
@@ -383,6 +384,7 @@
                                             <option <?php if ($searchMethod == "fundtransfer") { ?> selected <?php } ?> value="fundtransfer">금액이동</option>
                                             <option <?php if ($searchMethod == "airsys") { ?> selected <?php } ?> value="airsys">항공시스템</option>
                                             <option <?php if ($searchMethod == "ypsys") { ?> selected <?php } ?> value="ypsys">YP시스템</option>
+                                            <option <?php if ($searchMethod == "crsys") { ?> selected <?php } ?> value="crsys">크루즈시스템</option>
                                             <option <?php if ($searchMethod == "gift") { ?> selected <?php } ?> value="gift">상품권및기타</option>
                                         </select>
                                     </td>

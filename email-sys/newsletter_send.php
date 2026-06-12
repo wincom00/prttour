@@ -78,11 +78,19 @@ if(mysql_query($insert_queue, $dbConn)) {
         mysql_query($insert_detail, $dbConn);
     }
 
-    newsletterStartWorker(array($queue_id));
-    
+    $worker_launched = newsletterStartWorker(array($queue_id));
+
+    if ($worker_launched) {
+        $message = '뉴스레터가 발송 큐에 등록되었습니다. 백그라운드에서 발송이 진행됩니다.';
+    } elseif (newsletterIsSystemStopped()) {
+        $message = '뉴스레터가 발송 큐에 등록되었습니다. 단, 시스템이 중지 상태이므로 "시스템 재개" 후 진행상황 화면에서 실행해 주세요.';
+    } else {
+        $message = '뉴스레터가 발송 큐에 등록되었습니다. 자동 실행에 실패했으니 진행상황 화면에서 "선택 실행"으로 시작해 주세요.';
+    }
+
     echo json_encode([
-        'success' => true, 
-        'message' => '뉴스레터가 발송 큐에 등록되었습니다. 백그라운드에서 발송이 진행됩니다.',
+        'success' => true,
+        'message' => $message,
         'queue_id' => $queue_id
     ]);
 } else {

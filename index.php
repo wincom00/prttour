@@ -297,7 +297,7 @@
 				<div id="pie-container" style="min-width: 310px; height: 250px; max-width: 600px; margin: 0 auto"></div>
 			</div>-->
 		</div>
-    <!--    <div class="col-sm-12">
+    <!--    <div class="col-sm-12">git
 		  <div class="col-sm-4">
 					<div id="chartContainer" style="height: 370px; width: 100%;"></div>
 		  </div>
