@@ -49,6 +49,4 @@ class GoogleSearchBlocker {
     }
 }
 
-// 모든 요청에서 체크
-GoogleSearchBlocker::checkAndBlock();
 ?>

@@ -2,14 +2,75 @@
     $new_date=date("U", mktime(0,0,0,(date("m")), (date("d")), date("Y")));
 	$dates=date("Y-m-d", $new_date);
 
-    $qry2 = "select max(id) as mxid from att_log where userid='{$user_dbinfo['userid']}' && date_format( login_date, '%Y-%m-%d' ) = '$dates'";
-	
-	$rst2 = mysql_query($qry2);
-	$row0 = mysql_Fetch_assoc($rst2);
-  
-    $m_qry1 = "select * from att_log where userid='{$user_dbinfo['userid']}' && date_format( login_date, '%Y-%m-%d' ) = '$dates' && id='{$row0['mxid']}' ";
-	$m_rst1 = mysql_query($m_qry1);
-	$m_row1 = mysql_fetch_assoc($m_rst1);
+    // 로그인 사용자 정보는 전역(본체 header.php/inc_base.php가 준비한 값)을 먼저 상속한다.
+    // 메일함처럼 header.php 를 함수 스코프에서 require 한 진입점에서는 지역 $user_dbinfo 가
+    // 비어 있고 실제 값은 $GLOBALS['user_dbinfo'] 에만 들어 있다. 기본값을 먼저 채우면
+    // 상속 조건이 죽어버리므로(빈 배열도 is_array 라 true), 상속을 반드시 먼저 수행한다.
+    if ((!isset($user_dbinfo) || !is_array($user_dbinfo) || empty($user_dbinfo['userid']))
+        && isset($GLOBALS['user_dbinfo']) && is_array($GLOBALS['user_dbinfo']) && !empty($GLOBALS['user_dbinfo']['userid'])) {
+        $user_dbinfo = $GLOBALS['user_dbinfo'];
+    }
+    if (!isset($user_dbinfo) || !is_array($user_dbinfo)) {
+        $user_dbinfo = array();
+    }
+    if (!isset($user_dbinfo['userid'])) {
+        $user_dbinfo['userid'] = '';
+    }
+    if (!isset($user_dbinfo['kor_name'])) {
+        $user_dbinfo['kor_name'] = '';
+    }
+    if ((!isset($division) || $division === '') && !empty($user_dbinfo['division'])) {
+        $division = $user_dbinfo['division'];
+    }
+    if (!isset($division)) {
+        $division = '';
+    }
+    if (!isset($pdx)) {
+        $pdx = '';
+    }
+    if (!isset($sub)) {
+        $sub = '';
+    }
+    if (!isset($table_id)) {
+        $table_id = '';
+    }
+    $adminPluginPaths = array(
+        dirname(__DIR__) . '/mailbox/plugin.php',
+        dirname(dirname(__DIR__)) . '/mailbox/plugin.php',
+    );
+    foreach ($adminPluginPaths as $adminPluginPath) {
+        if (file_exists($adminPluginPath)) {
+            require_once $adminPluginPath;
+            break;
+        }
+    }
+    $mbxPluginState = function_exists('mbx_plugin_prepare_sidebar')
+        ? mbx_plugin_prepare_sidebar(array(
+            'request_path' => isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '',
+            'accounts' => isset($accounts) && is_array($accounts) ? $accounts : null,
+            'account' => isset($account) && is_array($account) ? $account : null,
+            'folder' => isset($folder) ? $folder : null,
+            'row' => isset($row) && is_array($row) ? $row : null,
+            'unread' => isset($unread) && is_array($unread) ? $unread : null,
+        ))
+        : array('active' => false, 'hide_default_menu' => false, 'ready' => false);
+    $m_row1 = array('status' => '', 'login_date' => '');
+    if ($user_dbinfo['userid'] !== '') {
+        $sideUserid = function_exists('mysql_real_escape_string') ? mysql_real_escape_string($user_dbinfo['userid']) : addslashes($user_dbinfo['userid']);
+        $qry2 = "select max(id) as mxid from att_log where userid='{$sideUserid}' && date_format( login_date, '%Y-%m-%d' ) = '$dates'";
+        $rst2 = mysql_query($qry2);
+        $row0 = $rst2 ? mysql_Fetch_assoc($rst2) : null;
+        if (is_array($row0) && isset($row0['mxid']) && $row0['mxid'] !== null && $row0['mxid'] !== '') {
+            $mxid = (int)$row0['mxid'];
+            $m_qry1 = "select * from att_log where userid='{$sideUserid}' && date_format( login_date, '%Y-%m-%d' ) = '$dates' && id='{$mxid}' ";
+            $m_rst1 = mysql_query($m_qry1);
+            $m_row1 = $m_rst1 ? mysql_fetch_assoc($m_rst1) : $m_row1;
+            if (!is_array($m_row1)) {
+                $m_row1 = array('status' => '', 'login_date' => '');
+            }
+        }
+    }
+
 ?>
 <a href="javascript:void(0)" class="sidebar_switch on_switch bs_ttip" data-placement="auto right" data-viewport="body" title="Hide Sidebar">사이드바 안보이기</a>
     <div class="sidebar">
@@ -48,11 +109,12 @@
 						</li>
 						<li align="center" style='padding-top :5px;'>
 							
-							<a href="logout.php" class="btn btn-primary btn-sm btng"><strong>로그아웃</strong></a>
+							<a href="/logout.php" class="btn btn-primary btn-sm btng"><strong>로그아웃</strong></a>
 						</li>
 					</ul>
 				</div>
                 <div id="side_accordion" class="panel-group">
+                   <?php if (empty($mbxPluginState['hide_default_menu'])): ?>
 				   <?php 
 				          if ($table_id != "") { 
 				              printLeftMenu_b($division,$user_dbinfo['userid'],$pdx,$sub,$table_id);
@@ -63,6 +125,8 @@
 						//$date = new DateTime("now", new DateTimeZone(date_default_timezone_get()) );
                         //echo $date->format('Y-m-d H:i:s');
 					?>
+                   <?php endif; ?>
+                   <?php if (function_exists('mbx_plugin_render_sidebar')) { mbx_plugin_render_sidebar($mbxPluginState); } ?>
 
                 </div>
 
@@ -76,6 +140,7 @@
 
 	<script>
 		$( document ).ready(function() {
+            <?php if (function_exists('mbx_plugin_render_sidebar_script')) { mbx_plugin_render_sidebar_script($mbxPluginState); } ?>
 			$( ".btnatt" ).click(function() {
 				//alert(gdatetime);
 				//return;

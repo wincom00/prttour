@@ -1,0 +1,27 @@
+{
+    "id": "mailbox",
+    "name": "\uba54\uc77c\ud568",
+    "label": "\uba54\uc77c\ud568",
+    "version": "1.0.0",
+    "enabled": true,
+    "hooks": [
+        "sidebar",
+        "sidebar_script"
+    ],
+    "tables": [
+        "mailbox_accounts",
+        "mailbox_admins",
+        "mailbox_folders",
+        "mailbox_messages",
+        "mailbox_attachments"
+    ],
+    "root": "/mailbox",
+    "web_root": "/mailbox",
+    "entry": "/mailbox/index.php",
+    "install": "/mailbox/install.php",
+    "delete_batch": "mailbox/delete_mailbox_plugin.cmd",
+    "delete_changes_batch": "mailbox/delete_mailbox_changes.cmd",
+    "root_mode": "document",
+    "plugin_dir": "mailbox",
+    "updated_at": "2026-06-22T08:08:28-04:00"
+}

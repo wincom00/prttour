@@ -35,7 +35,12 @@ $defaultOrder = " ORDER BY a.grand_revNo DESC, a.wdate DESC ";
 
 // 페이징
 $sLimit = "";
-if (isset($_POST['iDisplayStart']) && $_POST['iDisplayLength'] != '-1') {
+if (isset($_POST['start']) && isset($_POST['length']) && $_POST['length'] != '-1') {
+  $start = intval($_POST['start']);
+  $len   = intval($_POST['length']);
+  if ($len < 0 || $len > 500) $len = 50;
+  $sLimit = " LIMIT $start, $len ";
+} else if (isset($_POST['iDisplayStart']) && $_POST['iDisplayLength'] != '-1') {
   $start = intval($_POST['iDisplayStart']);
   $len   = intval($_POST['iDisplayLength']);
   // 안전망
@@ -47,7 +52,7 @@ if (isset($_POST['iDisplayStart']) && $_POST['iDisplayLength'] != '-1') {
 $sOrder = "";
 if (isset($_POST['iSortCol_0'])) {
   $orders = array();
-  $sortingCols = intval($_POST['iSortingCols']);
+  $sortingCols = isset($_POST['iSortingCols']) ? intval($_POST['iSortingCols']) : 1;
   for ($i=0; $i<$sortingCols; $i++) {
     $colIdx = intval($_POST['iSortCol_'.$i]);
     $dir    = (isset($_POST['sSortDir_'.$i]) && $_POST['sSortDir_'.$i] === 'asc') ? 'ASC' : 'DESC';
@@ -61,6 +66,28 @@ if (isset($_POST['iSortCol_0'])) {
     }
   }
   if (!empty($orders)) {
+    $orders[] = "a.`grand_revNo` DESC";
+    $orders[] = "a.`wdate` DESC";
+    $sOrder = " ORDER BY ".implode(", ", $orders)." ";
+  }
+} else if (isset($_POST['order']) && is_array($_POST['order'])) {
+  $orders = array();
+  foreach ($_POST['order'] as $orderInfo) {
+    if (!isset($orderInfo['column'])) continue;
+    $colIdx = intval($orderInfo['column']);
+    $dir    = (isset($orderInfo['dir']) && $orderInfo['dir'] === 'asc') ? 'ASC' : 'DESC';
+    $orderable = true;
+    if (isset($_POST['columns'][$colIdx]['orderable'])) {
+      $orderable = ($_POST['columns'][$colIdx]['orderable'] === 'true');
+    }
+    if ($orderable && isset($bColumns[$colIdx])) {
+      $col = 'a.`'.$bColumns[$colIdx].'`';
+      $orders[] = "$col $dir";
+    }
+  }
+  if (!empty($orders)) {
+    $orders[] = "a.`grand_revNo` DESC";
+    $orders[] = "a.`wdate` DESC";
     $sOrder = " ORDER BY ".implode(", ", $orders)." ";
   }
 }
@@ -230,9 +257,14 @@ while ($aRow = mysql_fetch_assoc($rResult)) {
     $colName = $bColumns[$i];
     $val = isset($aRow[$colName]) ? $aRow[$colName] : '';
     $href = "base_reservation_m.php?estimateCode=".$aRow['reserveCode']."&division=$division&pdx=$pdx&sub=$sub&ty=$ty&pricet=".$aRow['pricet']."#TOP";
-    $row[] = "<a href='$href'>".$val."</a>";
+    $row[] = "<a href='$href' style='color:#000000'>".$val."</a>";
   }
   $output['aaData'][] = $row;
 }
+
+$output['draw'] = intval(isset($_POST['draw']) ? $_POST['draw'] : $output['sEcho']);
+$output['recordsTotal'] = $iTotal;
+$output['recordsFiltered'] = $iFilteredTotal;
+$output['data'] = $output['aaData'];
 
 echo json_encode($output);

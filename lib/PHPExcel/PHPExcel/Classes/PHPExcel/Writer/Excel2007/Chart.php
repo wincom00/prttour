@@ -1096,7 +1096,7 @@ class PHPExcel_Writer_Excel2007_Chart extends
       &$catIsMultiLevelSeries,
       &$valIsMultiLevelSeries,
       &$plotGroupingType,
-      PHPExcel_Worksheet $pSheet
+      PHPExcel_Worksheet $pSheet = null
   ) {
     if (is_null($plotGroup)) {
       return;
@@ -1340,7 +1340,7 @@ class PHPExcel_Writer_Excel2007_Chart extends
       $objWriter,
       $groupType,
       $dataType = 'str',
-      PHPExcel_Worksheet $pSheet
+      PHPExcel_Worksheet $pSheet = null
   ) {
     if (is_null($plotSeriesValues)) {
       return;

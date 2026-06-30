@@ -1,0 +1,283 @@
+<?php
+    $new_date=date("U", mktime(0,0,0,(date("m")), (date("d")), date("Y")));
+	$dates=date("Y-m-d", $new_date);
+
+    if (!isset($user_dbinfo) || !is_array($user_dbinfo)) {
+        $user_dbinfo = array();
+    }
+    if (!isset($user_dbinfo['userid'])) {
+        $user_dbinfo['userid'] = '';
+    }
+    if (!isset($user_dbinfo['kor_name'])) {
+        $user_dbinfo['kor_name'] = '';
+    }
+    if (!isset($division)) {
+        $division = '';
+    }
+    if (!isset($pdx)) {
+        $pdx = '';
+    }
+    if (!isset($sub)) {
+        $sub = '';
+    }
+    if (!isset($table_id)) {
+        $table_id = '';
+    }
+    $m_row1 = array('status' => '', 'login_date' => '');
+    if ($user_dbinfo['userid'] !== '') {
+        $sideUserid = function_exists('mysql_real_escape_string') ? mysql_real_escape_string($user_dbinfo['userid']) : addslashes($user_dbinfo['userid']);
+        $qry2 = "select max(id) as mxid from att_log where userid='{$sideUserid}' && date_format( login_date, '%Y-%m-%d' ) = '$dates'";
+        $rst2 = mysql_query($qry2);
+        $row0 = $rst2 ? mysql_Fetch_assoc($rst2) : null;
+        if (is_array($row0) && isset($row0['mxid']) && $row0['mxid'] !== null && $row0['mxid'] !== '') {
+            $mxid = (int)$row0['mxid'];
+            $m_qry1 = "select * from att_log where userid='{$sideUserid}' && date_format( login_date, '%Y-%m-%d' ) = '$dates' && id='{$mxid}' ";
+            $m_rst1 = mysql_query($m_qry1);
+            $m_row1 = $m_rst1 ? mysql_fetch_assoc($m_rst1) : $m_row1;
+            if (!is_array($m_row1)) {
+                $m_row1 = array('status' => '', 'login_date' => '');
+            }
+        }
+    }
+
+    $mbxCommonPath = dirname(__DIR__) . '/mailbox/lib/common.php';
+    if (!function_exists('mbx_visible_accounts') && file_exists($mbxCommonPath)) {
+        require_once $mbxCommonPath;
+    }
+    $mbxMailReady = false;
+    $mbxSideAccounts = array();
+    $mbxSideAccount = null;
+    $mbxSideFolder = 'inbox';
+    $mbxSideUnread = array('inbox' => 0, 'sent' => 0, 'trash' => 0);
+    if (function_exists('mbx_visible_accounts')) {
+        try {
+            $mbxSideDb = mbx_db();
+            $mbxSideAccounts = isset($accounts) && is_array($accounts) ? $accounts : mbx_visible_accounts($mbxSideDb);
+            $mbxSideAccount = isset($account) && is_array($account) ? $account : mbx_current_account($mbxSideDb);
+            if (isset($folder) && in_array($folder, array('inbox', 'sent', 'trash'), true)) {
+                $mbxSideFolder = $folder;
+            } elseif (isset($_GET['folder']) && in_array($_GET['folder'], array('inbox', 'sent', 'trash'), true)) {
+                $mbxSideFolder = $_GET['folder'];
+            } elseif (isset($row) && is_array($row) && isset($row['folder_key']) && in_array($row['folder_key'], array('inbox', 'sent', 'trash'), true)) {
+                $mbxSideFolder = $row['folder_key'];
+            }
+            if (isset($unread) && is_array($unread)) {
+                $mbxSideUnread = $unread;
+            } elseif ($mbxSideAccount) {
+                foreach ($mbxSideUnread as $k => $v) {
+                    $mbxUnreadRow = mbx_fetch_one_stmt(mbx_stmt($mbxSideDb, "SELECT COUNT(*) AS c FROM mailbox_messages WHERE account_id=? AND folder_key=? AND is_read=0", 'is', array((int)$mbxSideAccount['id'], $k)));
+                    $mbxSideUnread[$k] = isset($mbxUnreadRow['c']) ? (int)$mbxUnreadRow['c'] : 0;
+                }
+            }
+            $mbxMailReady = true;
+        } catch (Throwable $e) {
+            $mbxMailReady = false;
+        }
+    }
+?>
+<a href="javascript:void(0)" class="sidebar_switch on_switch bs_ttip" data-placement="auto right" data-viewport="body" title="Hide Sidebar">사이드바 안보이기</a>
+    <div class="sidebar">
+    
+        <div class="sidebar_inner_scroll">
+            <div class="sidebar_inner">
+                <form action="#" class="input-group input-group-sm" method="post">
+				   <div style="text-align:center;">
+				   <?php  if ($m_row1['status']=="2") { ?>
+							<button name=kkind id=kkind type="button" class="btn btn-primary btnatt text-center" value="1">
+							   <span id="instat" >&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;IN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+							</button>
+				   <?php } else  if ($m_row1['status']=="1") { ?>
+							<button name=kkind id=kkind type="button" class="btn btn-primary btnatt" value="2">
+							   <span id="instat">OUT <?=$m_row1['login_date']?></span>
+							</button>
+
+				   <?php } else  if ($m_row1['status']=="") { ?>
+							<button name=kkind id=kkind type="button" class="btn btn-primary btnatt" value="1">
+							   <span id="instat" >&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;IN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+							</button>
+				   <?php }  ?>
+					</div>
+                </form>
+				<br />
+				
+				<div class="sidebar_info">
+					<ul class="list-unstyled">
+						<li>
+							<span class="act act-warning"><?=$user_dbinfo['kor_name']?></span>
+							<strong>로그인 사용자</strong>
+						</li>
+						<li>
+							<span class="act act-success" id="clock"></span>
+							<strong>시간</strong>
+						</li>
+						<li align="center" style='padding-top :5px;'>
+							
+							<a href="/logout.php" class="btn btn-primary btn-sm btng"><strong>로그아웃</strong></a>
+						</li>
+					</ul>
+				</div>
+                <div id="side_accordion" class="panel-group">
+				   <?php 
+				          if ($table_id != "") { 
+				              printLeftMenu_b($division,$user_dbinfo['userid'],$pdx,$sub,$table_id);
+						  } else {
+				              printLeftMenu($division,$user_dbinfo['userid'],$pdx,$sub);
+						  }
+                   		//echo date_default_timezone_get();
+						//$date = new DateTime("now", new DateTimeZone(date_default_timezone_get()) );
+                        //echo $date->format('Y-m-d H:i:s');
+					?>
+                   <?php if ($mbxMailReady): ?>
+                    <div class="mbx-sidebar" style="padding:0 10px 15px">
+                        <select class="form-control" id="mbxAccount">
+                            <?php foreach ($mbxSideAccounts as $acc): ?>
+                                <option value="<?php echo (int)$acc['id']; ?>" <?php echo $mbxSideAccount && (int)$mbxSideAccount['id'] === (int)$acc['id'] ? 'selected' : ''; ?>><?php echo mbx_h($acc['email']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <br>
+                        <a href="/mailbox/my_account.php" class="btn btn-default btn-block"><i class="fa fa-user"></i> 내 계정</a>
+                        <?php if (function_exists('mbx_can_manage_common_accounts') && mbx_can_manage_common_accounts()): ?>
+                            <a href="/mailbox/accounts.php" class="btn btn-default btn-block"><i class="fa fa-cog"></i> 계정 관리</a>
+                        <?php endif; ?>
+                        <a href="/mailbox/compose.php" class="btn btn-primary btn-block"><i class="fa fa-pencil"></i> 메일 쓰기</a>
+                        <ul class="nav nav-pills nav-stacked">
+                            <li class="<?php echo $mbxSideFolder === 'inbox' ? 'active' : ''; ?>">
+                                <a href="/mailbox/index.php?folder=inbox"><i class="fa fa-inbox"></i> 받은메일 <?php if (!empty($mbxSideUnread['inbox'])): ?><span class="badge badge-unread"><?php echo (int)$mbxSideUnread['inbox']; ?></span><?php endif; ?></a>
+                            </li>
+                            <li class="<?php echo $mbxSideFolder === 'sent' ? 'active' : ''; ?>">
+                                <a href="/mailbox/index.php?folder=sent"><i class="fa fa-paper-plane"></i> 보낸메일</a>
+                            </li>
+                            <li class="<?php echo $mbxSideFolder === 'trash' ? 'active' : ''; ?>">
+                                <a href="/mailbox/index.php?folder=trash"><i class="fa fa-trash"></i> 휴지통</a>
+                            </li>
+                        </ul>
+                        <br>
+                        <button id="btnSync" class="btn btn-default btn-block"><i class="fa fa-refresh"></i> 동기화</button>
+                    </div>
+                   <?php endif; ?>
+
+                </div>
+
+                <div class="push"></div>
+            </div>
+
+           <!-- <i class="fas fa-circle" style="color:#70A415;font-size:28px;box-shadow: 1px 0 0 0 #fff;"></i>-->
+        </div>
+
+    </div>
+
+	<script>
+		$( document ).ready(function() {
+            if ($('#mbxAccount').length || $('#btnSync').length) {
+            $(document).off('change', '#mbxAccount').on('change.mbxSide', '#mbxAccount', function(e){
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                document.cookie = 'mbx_account_id=' + $(this).val() + '; path=/';
+                location.href = '/mailbox/index.php';
+            });
+            function mbxSideNewCount(r){
+                var n = 0;
+                if(r && r.new){
+                    $.each(r.new, function(_, folders){
+                        if(folders && folders.inbox){ n += parseInt(folders.inbox, 10) || 0; }
+                    });
+                }
+                return n;
+            }
+            function mbxSideUpdateBadge(n){
+                var $a = $('.mbx-sidebar a[href="/mailbox/index.php?folder=inbox"], .mbx-sidebar a[href="?folder=inbox"]');
+                if(!$a.length){ return; }
+                var $b = $a.find('.badge-unread');
+                if(n > 0){
+                    if(!$b.length){ $b = $('<span class="badge badge-unread"></span>').appendTo($a); }
+                    $b.text(n);
+                } else {
+                    $b.remove();
+                }
+            }
+            var mbxSideLastUnread = <?php echo (int)$mbxSideUnread['inbox']; ?>;
+            var mbxSideAutoSyncing = false;
+            window.mbxSideAutoSyncInstalled = true;
+            function mbxSideAutoSync(){
+                if(mbxSideAutoSyncing || !$('#mbxAccount').length){ return; }
+                mbxSideAutoSyncing = true;
+                $.getJSON('/mailbox/api/sync.php?folder=inbox&_=' + (new Date()).getTime(), function(r){
+                    if(!r || r.status !== 'success'){ return; }
+                    if(r.errors && Object.keys && Object.keys(r.errors).length){ console.log('mailbox auto sync partial errors', r.errors); }
+                    var unread = parseInt(r.unread_inbox, 10) || 0;
+                    var newCount = mbxSideNewCount(r);
+                    mbxSideUpdateBadge(unread);
+                    if((newCount > 0 || unread > mbxSideLastUnread) && window.mbxToast){
+                        mbxToast('새 메일 ' + Math.max(newCount, unread - mbxSideLastUnread) + '통이 도착했습니다.');
+                    }
+                    if((newCount > 0 || unread !== mbxSideLastUnread) && location.pathname.replace(/\\/g, '/').toLowerCase() === '/mailbox/index.php' && (location.search === '' || location.search.indexOf('folder=inbox') !== -1)){
+                        setTimeout(function(){ location.reload(); }, 800);
+                    }
+                    mbxSideLastUnread = unread;
+                }).always(function(){
+                    mbxSideAutoSyncing = false;
+                });
+            }
+            $(document).off('click', '#btnSync').on('click.mbxSide', '#btnSync', function(e){
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var b = $(this), i = b.find('i');
+                b.prop('disabled', true);
+                i.addClass('fa-spin');
+                $.getJSON('/mailbox/api/sync.php', function(r){
+                    if(r.status === 'success'){
+                        if(r.errors && Object.keys(r.errors).length){ console.log('mailbox sync partial errors', r.errors); }
+                        var n = mbxSideNewCount(r);
+                        if(n > 0 && window.mbxToast){
+                            mbxToast('새 메일 ' + n + '통이 도착했습니다.');
+                            setTimeout(function(){ location.reload(); }, 1500);
+                        } else {
+                            location.reload();
+                        }
+                    } else {
+                        alert(r.message);
+                    }
+                }).fail(function(xhr){
+                    var msg = '동기화 실패';
+                    if(xhr.responseJSON && xhr.responseJSON.message){ msg = xhr.responseJSON.message; }
+                    alert(msg);
+                }).always(function(){
+                    b.prop('disabled', false);
+                    i.removeClass('fa-spin');
+                });
+            });
+            setTimeout(mbxSideAutoSync, 3000);
+            setInterval(mbxSideAutoSync, 20000);
+            }
+			$( ".btnatt" ).click(function() {
+				//alert(gdatetime);
+				//return;
+			    $.getJSON("post_att.php?kind="+$(this).val()+"&gdate="+gdatetime, function(data1) {
+					 $("#instat").html("");
+					 $(".btnatt").val("");
+					 $.each(data1, function(i,data2) {
+						 
+						
+						 if (data2.status==1)
+						 {
+							 alert('IN 보고가 되었습니다.!!');
+							 $("#instat").html("OUT "+data2.login_date+"");
+							 $(".btnatt").val("2");
+						 } else {
+							 alert('OUT 보고가 되었습니다.!!');
+							 $("#instat").html("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;IN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;");
+							 $(".btnatt").val("1");
+
+						 }
+						 
+						 
+
+					 });
+					
+
+
+			   });
+			});
+		});
+
+	</script>

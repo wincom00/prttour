@@ -39,16 +39,46 @@
 				    $qryeve ="";
 			}
 			$qry1 = "select a.reserveCode,c.grand_eCode,a.p_code,a.p_name,a.stDate ,b.c_code1,b.c_code2,b.p_own,c.tour_pcnt,
-						b.p_day,b.p_cnt ,c.r_status,c.ev_status from reserve_info a ,
+						b.p_day,b.p_cnt ,c.r_status,c.ev_status,
+						sum(case when a.rev_status = 'DONE' then a.p_cnt else 0 end) as real_res_cnt from reserve_info a ,
 						product_master b ,tour_master c 
 						 where a.p_code = b.p_code &&  b.p_code=c.p_code  && b.p_type in ('1','2','4') && b.m_type = 'S' && a.stDate =c.stDate && b.p_own='purun' && (b.p_day > 1 )
 						 && a.p_code not like '%PICKUP%'  && a.p_code not like '%SENDING%' $qrynm $qrysdate $qryeve group by a.p_code,a.stDate order by a.stDate asc";
 			
 			$rst1 = mysql_query($qry1,$dbConn);
 			//echo $qry1;
-			while($row1 = mysql_Fetch_assoc($rst1)){
-				$cinfo1=codebaseName($row1['c_code1']);
-				$cinfo2=codebaseName($row1['c_code2']);
+
+			// [튜닝] 결과를 먼저 수집한 뒤, 버스배정 건수를 1회 쿼리로 일괄 조회
+			$rows = array();
+			if ($rst1) {
+				while($rowf = mysql_fetch_assoc($rst1)){
+					$rows[] = $rowf;
+				}
+			}
+
+			$busCntMap = array();
+			$gcodes = array();
+			foreach ($rows as $r) {
+				if ($r['grand_eCode'] != "") $gcodes[$r['grand_eCode']] = true;
+			}
+			if (count($gcodes) > 0) {
+				$inList = "'".implode("','", array_keys($gcodes))."'";
+				$qry2 = "select grand_eCode, count(distinct bus_num) as cnt from tour_car
+							where grand_eCode in ($inList) && p_code not like '%ADD%' group by grand_eCode";
+				$rst2 = mysql_query($qry2,$dbConn);
+				if ($rst2) {
+					while($row2 = mysql_fetch_assoc($rst2)){
+						$busCntMap[$row2['grand_eCode']] = $row2['cnt'];
+					}
+				}
+			}
+
+			$codeNameCache = array(); // 지역코드명 캐시 (같은 코드 반복 쿼리 방지)
+			foreach ($rows as $row1){
+				if (!isset($codeNameCache[$row1['c_code1']])) $codeNameCache[$row1['c_code1']] = codebaseName($row1['c_code1']);
+				if (!isset($codeNameCache[$row1['c_code2']])) $codeNameCache[$row1['c_code2']] = codebaseName($row1['c_code2']);
+				$cinfo1 = $codeNameCache[$row1['c_code1']];
+				$cinfo2 = $codeNameCache[$row1['c_code2']];
 				if ($row1['r_status']== 'P') {
 					$row1['r_status'] = "<font color=red>예약접수중</font>";
 				}
@@ -88,20 +118,15 @@
 					$randrow['kor_name'] = randname($row1['p_own']);
 				}
 
-				$pcnt = getReserveInfoCnt($row1['p_code'],$row1['stDate']);
+				// [튜닝] 행별 getReserveInfoCnt() 호출 제거 — 메인쿼리에서 일괄 집계 (동일 기준: DONE 건의 p_cnt 합)
+				$pcnt = array('cnt' => ($row1['real_res_cnt'] != "" ? $row1['real_res_cnt'] : 0));
 
-				
-			    if ($pwcnt['cnt'] == "")  {
-					$pwcnt['cnt'] =0;
-				}
-				if ($pcnt['cnt'] == "")  {
-					$pcnt['cnt'] =0;
-				}
 				if ($row1['tour_pcnt'] != "")  {
 					$row1['p_cnt'] = $row1['tour_pcnt'];
 				}
-				$buscnt = getBusCnt($row1['grand_eCode']);
-				if ($buscnt['cnt'] == "0")  {
+				// [튜닝] 행별 getBusCnt() 호출 제거 — 위에서 일괄 조회한 맵 사용
+				$buscnt = isset($busCntMap[$row1['grand_eCode']]) ? $busCntMap[$row1['grand_eCode']] : 0;
+				if ($buscnt == 0)  {
 					$row1['room_num'] = "<font color=red>미배정</font>";
 				} else {
 					$row1['room_num'] = "<font color=red>배정</font>";

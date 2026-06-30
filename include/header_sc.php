@@ -1,4 +1,6 @@
 <?php
+    include_once __DIR__ . "/../google_block.php";
+    GoogleSearchBlocker::checkAndBlock();
     include "inc_base.php";
     $new_date=date("U", mktime(0,0,0,(date("m")), (date("d")), date("Y")));
 	$dates=date("Y-m-d", $new_date);

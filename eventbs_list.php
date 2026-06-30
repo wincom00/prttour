@@ -8,13 +8,13 @@
         echo "<meta http-equiv='refresh' content='0; url=./login.php'>";
         exit;
     }
-/*    if (!hasMenuAccess($division, $pdx, $sub)) {
+    if (!hasMenuAccess($division, $pdx, $sub)) {
         $goUrl_1 = "index.php";
         Misc::jvAlert("권한이 있는 메뉴가 아닙니다. 확인후 사용하세요.!!","");
         echo "<meta http-equiv='refresh' content='0; url=$goUrl_1'>";
         exit;
     }
-*/
+
     if (($kindEvent == 2) || ($kindEvent == "")) {
         $lst = 2;
     } else {
@@ -104,6 +104,7 @@
             
             // global $dbConn 제거 (mysql_* 함수는 전역 링크를 자동 참조함)
             global $division,$crev,$pdx,$sub,$productName,$evest,$startDate1,$endDate1,$k,$productOwener;
+            $k = 0; // 행 인덱스 초기화 (renderRow에서 증가)
             
             // 1. 조회 모드 확인 (기본값: reserved)
             $view_mode = isset($_REQUEST['view_mode']) ? $_REQUEST['view_mode'] : 'reserved';
@@ -119,46 +120,87 @@
                 // [MODE: 전체 스케줄 보기]
                 // =============================================================
                 
-                $startTS = strtotime($startDate1);
-                $endTS   = strtotime($endDate1);
-
-                // 날짜 루프 시작
-                for ($i = $startTS; $i <= $endTS; $i += 86400) {
-                    $currDate = date("Y-m-d", $i); // 현재 체크하는 날짜
-                    $currWeek = date("w", $i);     // 요일 (0:일, 1:월, ... 6:토)
-
-                    $qry1 = "SELECT 
-                                c.grand_eCode, 
-                                b.p_code, 
-                                b.p_name, 
-                                '$currDate' as stDate,  /* 날짜는 루프 변수 사용 */
-                                b.c_code1, b.c_code2, b.p_own, b.p_day, b.p_cnt, 
-                                c.r_status, c.ev_status, c.tour_pcnt, c.s_pcode,
-                                COUNT(a.reserveCode) as real_res_cnt
-                             FROM product_master b
-                             LEFT JOIN tour_master c ON b.p_code = c.p_code AND c.stDate = '$currDate'
-                             LEFT JOIN reserve_info a ON b.p_code = a.p_code AND a.stDate = '$currDate' AND a.rev_status != 'CANCEL'
-                             WHERE b.p_type IN ('1','2','4') 
-                               AND b.m_type = 'S' 
-                               AND b.p_code NOT LIKE '%ADD%'
-                               /* ▼ [중요] 유효기간 및 요일 체크 */
-                               AND b.p_vstart <= '$currDate' 
-                               AND b.p_vend >= '$currDate'
-                               AND b.p_week LIKE '%$currWeek%'
-                               $qrynm $qryeve $qryown 
-                             GROUP BY b.p_code
-                             ORDER BY b.p_name ASC";
-                    
-                    // 해당 날짜의 쿼리 실행 (mysql_query 사용)
-                    // $rst1 = $dbConn->query($qry1); -> 변경
-                    $rst1 = mysql_query($qry1);
-
-                    // while($row1 = $rst1->fetch_assoc()) { -> 변경
-                    if ($rst1) {
-                        while($row1 = mysql_fetch_assoc($rst1)) {
-                            renderRow($row1); // 행 출력 함수 호출
-                        }
+                // [튜닝] 날짜별 반복 쿼리(기간 일수만큼 실행) → 범위 일괄조회 3회로 축소
+                // (1) 기간과 겹치는 판매 가능 상품 1회 조회
+                $qry_p = "SELECT b.p_code, b.p_name, b.c_code1, b.c_code2, b.p_own, b.p_day, b.p_cnt,
+                                 b.p_vstart, b.p_vend, b.p_week
+                          FROM product_master b
+                          WHERE b.p_type IN ('1','2','4')
+                            AND b.m_type = 'S'
+                            AND b.p_code NOT LIKE '%ADD%'
+                            AND b.p_vstart <= '$endDate1'
+                            AND b.p_vend >= '$startDate1'
+                            $qrynm $qryown
+                          ORDER BY b.p_name ASC";
+                $rst_p = mysql_query($qry_p);
+                $products = array();
+                if ($rst_p) {
+                    while ($rowp = mysql_fetch_assoc($rst_p)) {
+                        $products[] = $rowp;
                     }
+                }
+
+                // (2) 기간 내 tour_master 1회 조회 (p_code|stDate 키 맵)
+                $tourMap = array();
+                $qry_t = "SELECT p_code, stDate, grand_eCode, r_status, ev_status, tour_pcnt, s_pcode
+                          FROM tour_master
+                          WHERE stDate BETWEEN '$startDate1' AND '$endDate1'";
+                $rst_t = mysql_query($qry_t);
+                if ($rst_t) {
+                    while ($rowt = mysql_fetch_assoc($rst_t)) {
+                        $tourMap[$rowt['p_code'].'|'.$rowt['stDate']] = $rowt;
+                    }
+                }
+
+                // (3) 기간 내 예약 인원수 1회 집계 (getReserveInfoCnt와 동일 기준: DONE 건의 p_cnt 합)
+                $cntMap = array();
+                $qry_c = "SELECT p_code, stDate, SUM(p_cnt) AS cnt
+                          FROM reserve_info
+                          WHERE stDate BETWEEN '$startDate1' AND '$endDate1'
+                            AND rev_status = 'DONE'
+                          GROUP BY p_code, stDate";
+                $rst_c = mysql_query($qry_c);
+                if ($rst_c) {
+                    while ($rowc = mysql_fetch_assoc($rst_c)) {
+                        $cntMap[$rowc['p_code'].'|'.$rowc['stDate']] = $rowc['cnt'];
+                    }
+                }
+
+                // 날짜 루프 (추가 쿼리 없이 PHP에서 유효기간·요일 체크)
+                $currDate = $startDate1;
+                while ($currDate <= $endDate1) {
+                    $currWeek = (string)date("w", strtotime($currDate)); // 요일 (0:일 ~ 6:토)
+
+                    foreach ($products as $p) {
+                        // 유효기간 체크 (기존 p_vstart <= 날짜 <= p_vend 와 동일)
+                        if ($p['p_vstart'] > $currDate || $p['p_vend'] < $currDate) continue;
+                        // 요일 체크 (기존 p_week LIKE '%요일%' 과 동일)
+                        if (strpos((string)$p['p_week'], $currWeek) === false) continue;
+
+                        $key  = $p['p_code'].'|'.$currDate;
+                        $tour = isset($tourMap[$key]) ? $tourMap[$key] : null;
+
+                        // 행사상태 검색조건 (기존 c.ev_status='$evest' 와 동일)
+                        if ($evest != "" && (!$tour || $tour['ev_status'] != $evest)) continue;
+
+                        renderRow(array(
+                            'grand_eCode'  => $tour ? $tour['grand_eCode'] : '',
+                            'p_code'       => $p['p_code'],
+                            'p_name'       => $p['p_name'],
+                            'stDate'       => $currDate,
+                            'c_code1'      => $p['c_code1'],
+                            'c_code2'      => $p['c_code2'],
+                            'p_own'        => $p['p_own'],
+                            'p_day'        => $p['p_day'],
+                            'p_cnt'        => $p['p_cnt'],
+                            'r_status'     => $tour ? $tour['r_status'] : '',
+                            'ev_status'    => $tour ? $tour['ev_status'] : '',
+                            'tour_pcnt'    => $tour ? $tour['tour_pcnt'] : '',
+                            's_pcode'      => $tour ? $tour['s_pcode'] : '',
+                            'real_res_cnt' => isset($cntMap[$key]) ? $cntMap[$key] : 0,
+                        ));
+                    }
+                    $currDate = date("Y-m-d", strtotime($currDate." +1 day"));
                 } // End Date Loop
 
             } else {
@@ -177,8 +219,9 @@
                             a.p_code, 
                             b.p_name, 
                             a.stDate, 
-                            b.c_code1, b.c_code2, b.p_own, b.p_day, b.p_cnt, 
-                            c.r_status, c.ev_status, c.tour_pcnt, c.s_pcode 
+                            b.c_code1, b.c_code2, b.p_own, b.p_day, b.p_cnt,
+                            c.r_status, c.ev_status, c.tour_pcnt, c.s_pcode,
+                            SUM(CASE WHEN a.rev_status = 'DONE' THEN a.p_cnt ELSE 0 END) AS real_res_cnt
                           FROM reserve_info a
                           JOIN product_master b ON a.p_code = b.p_code
                           LEFT OUTER JOIN tour_master c ON a.p_code = c.p_code AND a.stDate = c.stDate
@@ -210,7 +253,12 @@
     function renderRow($row1) {
         global $division, $pdx, $sub, $k, $startDate1, $endDate1;
 
-        $cinfo2 = codebaseName($row1['c_code2']);
+        // [튜닝] 같은 지역코드 반복 조회 방지 (요청 1회 내 캐시)
+        static $codeNameCache = array();
+        if (!isset($codeNameCache[$row1['c_code2']])) {
+            $codeNameCache[$row1['c_code2']] = codebaseName($row1['c_code2']);
+        }
+        $cinfo2 = $codeNameCache[$row1['c_code2']];
 
         // 상태값 변환
         if ($row1['r_status']== 'P') $row1['r_status'] = "<font color=red>예약접수중</font>";
@@ -359,8 +407,8 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                <?php 
-                                     echo printSingle();
+                                <?php
+                                     printSingle();
                                 ?>
                                 </tbody>
                             </table>

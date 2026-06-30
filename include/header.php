@@ -1,4 +1,6 @@
 <?php
+    include_once __DIR__ . "/../google_block.php";
+    GoogleSearchBlocker::checkAndBlock();
     include __DIR__ . "/inc_base.php";
     $new_date=date("U", mktime(0,0,0,(date("m")), (date("d")), date("Y")));
 	$dates=date("Y-m-d", $new_date);
@@ -85,19 +87,19 @@
 			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chosen/1.8.7/chosen.css">
 			
         <!--[if lte IE 8]>
-            <link rel="stylesheet" href="css/ie.css" />
+            <link rel="stylesheet" href="/css/ie.css" />
         <!['endif']-->
 
         <!--[if lt IE 9]>
-			<script src="js/ie/html5.js"></script>
-			<script src="js/ie/respond.min.js"></script>
-			<script src="lib/flot/excanvas.min.js"></script>
+			<script src="/js/ie/html5.js"></script>
+			<script src="/js/ie/respond.min.js"></script>
+			<script src="/lib/flot/excanvas.min.js"></script>
         <!['endif']-->  
 		<!-- <script src="js/jquery.min.js"></script> -->
 		<!-- <script src="js/jquery-migrate.min.js"></script> -->
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-migrate/3.0.1/jquery-migrate.min.js"></script>
-		<script src="lib/jquery-ui/jquery-ui-1.10.0.custom.min.js"></script>
+		<script src="/lib/jquery-ui/jquery-ui-1.10.0.custom.min.js"></script>
 
 		<!-- touch events for jquery ui-->
 			<script src="/js/forms/jquery.ui.touch-punch.min.js"></script>
@@ -132,7 +134,7 @@
 		<!-- to top -->
 			<script src="/lib/UItoTop/jquery.ui.totop.min.js"></script>
 		<!-- mobile nav -->
-			<script src="js/selectNav.js"></script>
+			<script src="/js/selectNav.js"></script>
 		<!-- moment.js date library -->
 			<script src="/lib/moment/moment.min.js"></script>
 
@@ -284,7 +286,7 @@
 									    <?php if ($user_dbinfo['division'] != "guide") { ?>
 										<a  href="input_batch.php" data-placement="bottom" target='_blank' data-container="body" class="label bs_ttip" title="스마트등록">스마트등록&nbsp;<i class="splashy-image_modernist"></i></a>
                                         <a  href="memo_list.php" data-placement="bottom" target='_blank' data-container="body" class="label bs_ttip" title="메모등록">메모등록&nbsp;<i class="splashy-group_blue_edit"></i></a>
-                                        <a  href="total_reservation.php" data-placement="bottom" data-container="body" class="label bs_ttip" title="예약검색">통합예약검색&nbsp;<i class="splashy-group_blue_edit"></i></a>
+                                        <a  href="/admin/total_reservation.php" data-placement="bottom" data-container="body" class="label bs_ttip" title="예약검색">통합예약검색&nbsp;<i class="splashy-group_blue_edit"></i></a>
 										<a  href="sc_local.php" data-placement="bottom" data-container="body" class="label bs_ttip" title="New tasks">전체스케줄표 <i class="splashy-image_modernist"></i></a>
 										<a  data-backdrop="static" href="sc_out.php" data-placement="bottom" data-container="body" class="label bs_ttip" title="New tasks">아웃바운드스케줄표 <i class="splashy-image_modernist"></i></a>
 										<?php } else{ ?>

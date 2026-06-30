@@ -46,9 +46,54 @@
 			
 			$rst1 = mysql_query($qry1,$dbConn);
 			//echo $qry1;
-			while($row1 = mysql_Fetch_assoc($rst1)){
-				$cinfo1=codebaseName($row1['c_code1']);
-				$cinfo2=codebaseName($row1['c_code2']);
+
+			// [튜닝] 결과를 먼저 수집한 뒤, 행별 반복 쿼리를 일괄 조회로 대체
+			$rows = array();
+			if ($rst1) {
+				while($rowf = mysql_fetch_assoc($rst1)){
+					$rows[] = $rowf;
+				}
+			}
+
+			// 예약(DONE)/대기(WAIT) 인원수 일괄 집계 (getReserveInfoCnt/getReserveWaitSCnt와 동일 기준)
+			// ※ 메인쿼리는 reserve_traveler 조인으로 행이 늘어나므로 별도 쿼리로 집계해야 정확함
+			$resCntMap = array();
+			$qry2 = "select a.p_code, a.stDate,
+						sum(case when a.rev_status='DONE' then a.p_cnt else 0 end) as done_cnt,
+						sum(case when a.rev_status='WAIT' && a.p_code not in ('SPICKUP003','SSEND007') then a.p_cnt else 0 end) as wait_cnt
+						from reserve_info a where 1=1 $qrysdate group by a.p_code, a.stDate";
+			$rst2 = mysql_query($qry2,$dbConn);
+			if ($rst2) {
+				while($row2 = mysql_fetch_assoc($rst2)){
+					$resCntMap[$row2['p_code'].'|'.$row2['stDate']] = array('done' => $row2['done_cnt'], 'wait' => $row2['wait_cnt']);
+				}
+			}
+
+			// 버스배정 건수 일괄 조회 (getbusass와 동일 기준)
+			$busCntMap = array();
+			$gcodes = array();
+			foreach ($rows as $r) {
+				if ($r['grand_eCode'] != "") $gcodes[$r['grand_eCode']] = true;
+			}
+			if (count($gcodes) > 0) {
+				$inList = "'".implode("','", array_keys($gcodes))."'";
+				$qry3 = "select grand_eCode, count(*) as cnt from tour_car
+							where grand_eCode in ($inList) && p_code not like '%ADD%' group by grand_eCode";
+				$rst3 = mysql_query($qry3,$dbConn);
+				if ($rst3) {
+					while($row3 = mysql_fetch_assoc($rst3)){
+						$busCntMap[$row3['grand_eCode']] = $row3['cnt'];
+					}
+				}
+			}
+
+			$codeNameCache = array(); // 지역코드명 캐시 (같은 코드 반복 쿼리 방지)
+			$randNameCache = array(); // 상품소유사 정보 캐시
+			foreach ($rows as $row1){
+				if (!isset($codeNameCache[$row1['c_code1']])) $codeNameCache[$row1['c_code1']] = codebaseName($row1['c_code1']);
+				if (!isset($codeNameCache[$row1['c_code2']])) $codeNameCache[$row1['c_code2']] = codebaseName($row1['c_code2']);
+				$cinfo1 = $codeNameCache[$row1['c_code1']];
+				$cinfo2 = $codeNameCache[$row1['c_code2']];
 				if ($row1['r_status']== 'P') {
 					$row1['r_status'] = "<font color=red>예약접수중</font>";
 				}
@@ -85,11 +130,14 @@
 				if ($row1['p_own'] == "purun") {
 					$randrow['kor_name'] = "푸른투어";
 				} else {
-					$randrow = randname($row1['p_own']);
+					// [튜닝] 같은 소유사 반복 쿼리 방지
+					if (!isset($randNameCache[$row1['p_own']])) $randNameCache[$row1['p_own']] = randname($row1['p_own']);
+					$randrow = $randNameCache[$row1['p_own']];
 				}
-				$pcnt = getReserveInfoCnt($row1['p_code'],$row1['stDate']);
-
-				$pwcnt = getReserveWaitSCnt($row1['p_code'],$row1['stDate']);
+				// [튜닝] 행별 getReserveInfoCnt/getReserveWaitSCnt 호출 제거 — 일괄 집계 맵 사용
+				$rkey  = $row1['p_code'].'|'.$row1['stDate'];
+				$pcnt  = array('cnt' => isset($resCntMap[$rkey]) ? $resCntMap[$rkey]['done'] : 0);
+				$pwcnt = array('cnt' => isset($resCntMap[$rkey]) ? $resCntMap[$rkey]['wait'] : 0);
 			 
 			    if ($pwcnt['cnt'] == "")  {
 					$pwcnt['cnt'] =0;
@@ -100,7 +148,8 @@
 				if ($row1['tour_pcnt'] != "")  {
 					$row1['p_cnt'] = $row1['tour_pcnt'];
 				}
-				$buscnt = getbusass($row1['grand_eCode']);
+				// [튜닝] 행별 getbusass() 호출 제거 — 일괄 조회 맵 사용
+				$buscnt = array('cnt' => isset($busCntMap[$row1['grand_eCode']]) ? $busCntMap[$row1['grand_eCode']] : "0");
 				if ($buscnt['cnt'] == "0")  {
 					$row1['traveler_room'] = "<font color=red>미배정</font>";
 				} else {
