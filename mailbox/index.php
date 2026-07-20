@@ -1,5 +1,11 @@
 <?php
 require_once __DIR__ . '/lib/bootstrap.php';
+// OAuth 리디렉션 URI가 mailbox 루트(https://.../mailbox/)로 등록된 경우,
+// 제공자가 code/state 를 달고 돌아오면 콜백 처리기로 위임한다(header 출력 전에 처리해야 redirect 가능).
+if (isset($_GET['state']) && (isset($_GET['code']) || isset($_GET['error']))) {
+    require __DIR__ . '/api/oauth.php';
+    exit;
+}
 mbx_require_admin_file('include/header.php');
 require_once __DIR__ . '/lib/common.php';
 mbx_require_page_auth();
@@ -8,20 +14,22 @@ $db = mbx_db();
 MailboxSync::ensureTables($db);
 $accounts = mbx_visible_accounts($db);
 $account = mbx_current_account($db);
-$folder = isset($_GET['folder']) && in_array($_GET['folder'], array('inbox','sent','trash'), true) ? $_GET['folder'] : 'inbox';
+$folderRows = $account ? mbx_account_folders($db, (int)$account['id'], true) : array();
+$defaultFolder = isset($folderRows[0]['folder_key']) ? (string)$folderRows[0]['folder_key'] : 'inbox';
+$folder = isset($_GET['folder']) ? (string)$_GET['folder'] : $defaultFolder;
+if (!$account || !mbx_folder_allowed($db, $account, $folder, true)) {
+    $folder = $defaultFolder;
+}
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $limit = 20;
 $offset = ($page - 1) * $limit;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $rows = array();
 $totalRows = 0;
-$unread = array('inbox' => 0, 'sent' => 0, 'trash' => 0);
+$unread = array();
 
 if ($account) {
-    foreach ($unread as $k => $v) {
-        $r = mbx_fetch_one_stmt(mbx_stmt($db, "SELECT COUNT(*) AS c FROM mailbox_messages WHERE account_id=? AND folder_key=? AND is_read=0", 'is', array((int)$account['id'], $k)));
-        $unread[$k] = (int)$r['c'];
-    }
+    $unread = mbx_unread_counts($db, (int)$account['id'], $folderRows);
     $where = "account_id=? AND folder_key=?";
     $types = 'is';
     $params = array((int)$account['id'], $folder);
@@ -31,10 +39,10 @@ if ($account) {
         $types .= 'ssss';
         $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
     }
-    $allRows = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT * FROM mailbox_messages WHERE " . $where . " ORDER BY mail_date DESC, uid DESC", $types, $params));
-    $threadRows = mbx_group_list_threads($allRows, $folder);
-    $totalRows = count($threadRows);
-    $rows = array_slice($threadRows, $offset, $limit);
+    $countRow = mbx_fetch_one_stmt(mbx_stmt($db, "SELECT COUNT(*) AS c FROM mailbox_messages WHERE " . $where, $types, $params));
+    $totalRows = isset($countRow['c']) ? (int)$countRow['c'] : 0;
+    $rows = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT * FROM mailbox_messages WHERE " . $where . " ORDER BY mail_date DESC, uid DESC LIMIT " . (int)$offset . ", " . (int)$limit, $types, $params));
+    $rows = mbx_group_list_threads($rows, $folder);
 }
 $totalPages = max(1, (int)ceil($totalRows / $limit));
 function mbx_list_subject_parts($subject)
@@ -95,6 +103,9 @@ if (isset($_GET['sent'])) { $mbx_status = '메일을 보냈습니다.'; } // foo
 .mbx-unread td{font-weight:bold;background:#eaf2ff}
 .mbx-unread td:first-child{box-shadow:inset 3px 0 0 #2f6fed}
 .mbx-unread .mbx-subject{color:#1a3e8c}
+/* 읽은 메일: 흐리게(회색) 표시해 안읽음과 시각적으로 구분 */
+.mbx-row:not(.mbx-unread) td{color:#202124;font-weight:normal}
+.mbx-row:not(.mbx-unread) .mbx-subject{color:#202124}
 .mbx-sidebar .btn{margin-bottom:8px}
 .mbx-subject{display:inline;color:#333}.mbx-subject-prefix{color:#5f6368;font-weight:normal;margin-right:4px}.mbx-snippet{color:#777;font-weight:normal}.mbx-snippet:before{content:" - "}
 .mbx-row{cursor:pointer}.mbx-actions{margin:10px 0}
@@ -170,7 +181,7 @@ var mbxListRefreshing = false;
 var mbxListAutoSyncing = false;
 var mbxListAutoTimer = null;
 var mbxListSyncUrl = <?php echo json_encode(mbx_plugin_url('api/sync.php')); ?>;
-var mbxListLastUnread = <?php echo (int)$unread['inbox']; ?>;
+var mbxListLastUnread = <?php echo isset($unread['inbox']) ? (int)$unread['inbox'] : 0; ?>;
 function selectedIds(){var ids=[];$('.chk:checked').each(function(){ids.push($(this).val());});return ids;}
 function refreshButtons(){
   var total = $('.chk').length;
@@ -222,6 +233,9 @@ window.mbxInboxRefresh = function(opts){
     }
   }).always(function(){
     mbxListRefreshing = false;
+    // 자동동기화가 끝난 뒤 목록 갱신이 이어지면 mbxListAutoSync 의 always 는
+    // (refreshing=true 라) 스피너를 못 끈다. 갱신이 끝나는 이 시점에 꺼준다.
+    if(!mbxListAutoSyncing){ mbxListSetLiveState('LIVE', false); }
   });
 };
 function mbxListSetLiveState(text, spinning){
@@ -314,6 +328,15 @@ function mbxFormatListSubjects(){
   });
 }
 $(mbxFormatListSubjects);
+$(function(){
+  $('#mbxLiveState').css('cursor', 'pointer').attr('title', 'Sync now').on('click', function(){
+    mbxListAutoSync(true);
+  });
+  mbxListAutoSync(false);
+  mbxListAutoTimer = setInterval(function(){
+    mbxListAutoSync(false);
+  }, 60000);
+});
 $(refreshButtons);
 $(document).on('click','.mbx-row',function(e){if($(e.target).closest('input,button,a').length || $(e.target).closest('td').is(':first-child')) return; location.href=$(this).data('url');});
 $(document).on('click','.mailbox-list tbody td:first-child',function(e){

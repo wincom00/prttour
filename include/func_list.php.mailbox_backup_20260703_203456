@@ -2012,18 +2012,6 @@ function credit_process($xType,$address,$zipcode,$card_num,$cvv2,$month,$year,$l
 	
 
 
-	// 메뉴 링크를 절대경로로 변환한다. (메일함 플러그인 설치 시 추가)
-	// menu_info_user.menu_link 는 'base_reservation.php?...' 상대경로라 /mailbox/ 같은
-	// 하위 폴더에서 누르면 경로가 깨진다. 절대경로/외부 URL/javascript: 는 그대로 둔다.
-	function adminMenuLink($link){
-		$link = trim((string)$link);
-		if ($link === '' || $link === '#') { return $link; }
-		if ($link[0] === '/') { return $link; }
-		if (substr($link, 0, 2) === '//') { return $link; }
-		if (preg_match('#^[a-z][a-z0-9+.\-]*:#i', $link)) { return $link; }
-		return '/' . ltrim($link, './');
-	}
-
 	// 메뉴접근
 	function printLeftMenu($division,$userid,$pdx,$sub){
 	
@@ -2058,7 +2046,7 @@ function credit_process($xType,$address,$zipcode,$card_num,$cvv2,$month,$year,$l
 					} else {
 						$class = "";
 					}
-					$content .="<li $class><a href='" . adminMenuLink($row2['menu_link']) . "'>{$row2['menu_name']}</a></li>";
+					$content .="<li $class><a href='{$row2['menu_link']}'>{$row2['menu_name']}</a></li>";
 								
 			}
 			$content .="</ul>
@@ -2114,7 +2102,7 @@ function credit_process($xType,$address,$zipcode,$card_num,$cvv2,$month,$year,$l
 					} else {
 						$class = "";
 					}
-					$content .="<li $class><a href='" . adminMenuLink($row2['menu_link']) . "'>{$row2['menu_name']}</a></li>";
+					$content .="<li $class><a href='{$row2['menu_link']}'>{$row2['menu_name']}</a></li>";
 								
 			}
 			$content .="</ul>

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/data_change_logger.php';
 
 if (!function_exists('mysql_connect')) {
     if (!defined('MYSQL_ASSOC')) {
@@ -99,7 +100,16 @@ if (!function_exists('mysql_connect')) {
             return false;
         }
 
-        return mysqli_query($link, $query);
+        $result = mysqli_query($link, $query);
+        $action = data_change_log_action($query);
+        if ($action !== '') {
+            $affectedRows = $link instanceof mysqli ? mysqli_affected_rows($link) : null;
+            $insertId = $link instanceof mysqli ? mysqli_insert_id($link) : null;
+            $error = ($result === false && $link instanceof mysqli) ? mysqli_error($link) : '';
+            data_change_log_write($query, $result !== false, $error, $affectedRows, $insertId);
+        }
+
+        return $result;
     }
 
     function mysql_error($link = null)

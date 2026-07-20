@@ -11,8 +11,8 @@ $error = '';
 $accountId = isset($_GET['account_id']) ? (int)$_GET['account_id'] : 0;
 if ($accountId > 0) {
     $account = mbx_get_account($db, $accountId, false);
-    // 관리자가 아니면 본인 소유/공통 계정만 진단 허용
-    if ($account && !mbx_is_admin() && (string)$account['owner_userid'] !== mbx_current_userid() && (int)$account['is_common'] !== 1) {
+    // 관리자가 아니면 열람 가능한(본인 소유/공통 열람 대상) 계정만 진단 허용
+    if ($account && !mbx_account_visible($db, $account)) {
         $account = null;
         $error = '권한이 없습니다.';
     }
@@ -26,9 +26,7 @@ if ($accountId > 0) {
 }
 if ($account) {
     try {
-        $client = new ImapClient($account['imap_host'], (int)$account['imap_port']);
-        $client->connect();
-        $client->login($account['email'], $account['app_password']);
+        $client = mbx_imap_connect($db, $account);
         $folders = $client->listFolders();
         $status = $client->select('INBOX');
         $uids = $client->uidSearch('ALL');

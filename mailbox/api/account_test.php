@@ -16,14 +16,11 @@ try {
         if (!$account) {
             throw new RuntimeException('계정을 찾을 수 없습니다.');
         }
-        // 관리자가 아니면 본인 소유/공통 계정만 테스트 허용
-        if (!mbx_is_admin() && (string)$account['owner_userid'] !== mbx_current_userid() && (int)$account['is_common'] !== 1) {
+        // 관리자가 아니면 열람 가능한(본인 소유/공통 열람 대상) 계정만 테스트 허용
+        if (!mbx_account_visible($db, $account)) {
             throw new RuntimeException('권한이 없습니다.');
         }
-        $host = $account['imap_host'];
-        $port = (int)$account['imap_port'];
-        $user = $account['email'];
-        $pass = $account['app_password'];
+
     } elseif (!mbx_is_admin()) {
         throw new RuntimeException('권한이 없습니다.');
     } else {
@@ -32,9 +29,13 @@ try {
         $user = isset($_POST['user']) ? trim($_POST['user']) : '';
         $pass = isset($_POST['pass']) ? (string)$_POST['pass'] : '';
     }
-    $client = new ImapClient($host, $port);
-    $client->connect();
-    $client->login($user, $pass);
+    if ($accountId > 0) {
+        $client = mbx_imap_connect($db, $account);
+    } else {
+        $client = new ImapClient($host, $port);
+        $client->connect();
+        $client->login($user, $pass);
+    }
     $folders = $client->listFolders();
     $client->logout();
     mbx_json(array('status' => 'success', 'folders' => array_slice($folders, 0, 20)));

@@ -102,6 +102,9 @@ final class MimeParser
         if ($text === '') {
             return '';
         }
+        // BODY[TEXT] 로 가져온 멀티파트 원문에는 본문 텍스트 파트 뒤에 첨부(base64 등)
+        // 파트가 통째로 붙어온다. 프리뷰에 첨부 바이너리가 새어들지 않도록 먼저 잘라낸다.
+        $text = self::stripMimeAttachmentParts($text);
         $decoded = self::decodeEncodedBlob($text);
         if ($decoded !== $text) {
             $text = $decoded;
@@ -189,6 +192,33 @@ final class MimeParser
         return false;
     }
 
+    // BODY[TEXT] 로 가져온 멀티파트 원문은 본문 텍스트 파트 뒤에 첨부(base64 등) 파트가
+    // 통째로 붙어온다. 76자 줄바꿈된 base64 는 공백 정규화 후 200자 런 검사에 안 걸려
+    // 스니펫에 그대로 새어든다. 첫 번째 base64/attachment 파트 경계부터 끝까지 잘라내
+    // 첨부 바이너리가 프리뷰에 섞이지 않게 한다.
+    private static function stripMimeAttachmentParts($text)
+    {
+        $text = (string)$text;
+        // 멀티파트 원문(맨 앞이 --boundary)일 때만 처리한다.
+        if (substr(ltrim($text, "\r\n"), 0, 2) !== '--') {
+            return $text;
+        }
+        // 파트 경계(--boundary) 다음, 다른 경계를 넘지 않고 그 파트의 헤더 중
+        // base64 전송 인코딩 또는 attachment 처분이 나오는 첫 지점에서 자른다.
+        if (preg_match(
+            '/\r?\n--[^\r\n]+[ \t]*\r?\n(?:(?!--)[^\r\n]*\r?\n)*?[^\r\n]*Content-(?:Transfer-Encoding[ \t]*:[ \t]*base64|Disposition[ \t]*:[ \t]*attachment)/i',
+            $text,
+            $m,
+            PREG_OFFSET_CAPTURE
+        )) {
+            $cut = (int)$m[0][1];
+            if ($cut > 0) {
+                $text = substr($text, 0, $cut);
+            }
+        }
+        return $text;
+    }
+
     public static function parseHeaders($headerText)
     {
         $headerText = preg_replace("/\r?\n[ \t]+/", ' ', (string)$headerText);
@@ -232,6 +262,16 @@ final class MimeParser
     {
         $value = trim((string)$value);
         if ($value === '') {
+            return $value;
+        }
+        // 이미 정상 HTML/텍스트인 본문은 그대로 반환한다. 아래 휴리스틱은 본문 안의
+        // 20자 이상 영숫자 런(추적 토큰, CSS 값, 해시 등)을 base64 블록으로 오인해
+        // base64_decode 한 바이너리 쓰레기로 본문 전체를 교체해 버릴 수 있다.
+        // (실사례: PayPal 영수증 56KB HTML → 28바이트 바이너리로 파괴)
+        if (preg_match('/<\s*(?:!doctype|html|head|body|table|div|p|span|a|img|br|td|tr)\b/i', substr($value, 0, 4000))) {
+            return $value;
+        }
+        if (self::isDisplayableText($value)) {
             return $value;
         }
         $candidate = preg_replace('/<br\s*\/?>/i', "\n", $value);
@@ -296,7 +336,9 @@ final class MimeParser
             if (preg_match('/<\s*(?:!doctype|html|head|body|table|div|p|span)\b/i', $sample)) {
                 return $text;
             }
-            if ($fallbackText === null && !preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $sample)) {
+            // 디코딩 결과가 실제로 읽을 수 있는 텍스트일 때만 원본을 대체한다.
+            // 임의 영숫자 런도 base64 디코딩은 성공하므로 제어문자 검사만으로는 부족하다.
+            if ($fallbackText === null && !preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $sample) && self::isDisplayableText($text)) {
                 $fallbackText = $text;
             }
         }
@@ -397,7 +439,10 @@ final class MimeParser
     private static function splitMultipart($body, $boundary)
     {
         $boundary = preg_quote($boundary, '/');
-        $parts = preg_split('/\r?\n--' . $boundary . '(?:--)?\r?\n/', "\r\n" . (string)$body);
+        // 닫는 경계(--boundary--)는 메시지/파트의 맨 끝에 줄바꿈 없이 올 수 있다.
+        // (중첩 multipart 에서는 바깥 split 의 trim 이 끝 줄바꿈을 이미 제거한 상태)
+        // 줄 끝을 \r?\n 로만 요구하면 이 경우 경계 문자열이 본문에 그대로 남아 표시된다.
+        $parts = preg_split('/\r?\n--' . $boundary . '(?:--)?[ \t]*(?:\r?\n|$)/', "\r\n" . (string)$body);
         $out = array();
         foreach ($parts as $part) {
             $part = trim($part, "\r\n");

@@ -44,6 +44,10 @@ try {
     if (!$account) {
         throw new RuntimeException('발송 계정이 없습니다.');
     }
+    // account_id 로 직접 지정한 경우에도 본인이 열람 가능한 계정에서만 발송할 수 있다.
+    if ($accountId > 0 && !mbx_account_visible($db, $account)) {
+        throw new RuntimeException('발송 권한이 없습니다.');
+    }
     $badTo = array();
     $badCc = array();
     $toList = mbx_parse_email_csv(isset($_POST['to']) ? $_POST['to'] : '', $badTo);
@@ -61,6 +65,7 @@ try {
 
     require_once mbx_admin_path('PHPMailer/class.phpmailer.php');
     require_once mbx_admin_path('PHPMailer/class.smtp.php');
+    require_once dirname(__DIR__) . '/lib/SmtpClient.php';
 
     $stored = array();
     $uploadRoot = dirname(__DIR__) . '/uploads/' . date('Ym');
@@ -103,7 +108,7 @@ try {
     $mail->Host = $account['smtp_host'];
     $mail->Port = (int)$account['smtp_port'];
     $mail->Username = $account['email'];
-    $mail->Password = $account['app_password'];
+    $mail->Password = isset($account['app_password']) ? $account['app_password'] : '';
     $mail->CharSet = 'utf-8';
     $mail->IsHTML(true);
     $mail->SetFrom($account['email'], $account['display_name'] !== '' ? $account['display_name'] : $account['email']);
@@ -122,7 +127,19 @@ try {
     foreach ($stored as $file) {
         $mail->AddAttachment($file['path'], $file['name']);
     }
-    $mail->Send();
+    $authType = isset($account['auth_type']) ? strtolower(trim((string)$account['auth_type'])) : 'password';
+    if ($authType === 'oauth2') {
+        if (!method_exists($mail, 'preSend') || !method_exists($mail, 'getSentMIMEMessage')) {
+            throw new RuntimeException('현재 PHPMailer 버전에서 MIME 생성 메서드를 찾을 수 없습니다.');
+        }
+        if (!$mail->preSend()) {
+            throw new RuntimeException('메일 MIME 생성에 실패했습니다.');
+        }
+        $smtp = new SmtpClient($account['smtp_host'], (int)$account['smtp_port']);
+        $smtp->sendXOAuth2($account['email'], mbx_account_access_token($db, $account), $account['email'], array_merge($toList, $ccList), $mail->getSentMIMEMessage());
+    } else {
+        $mail->Send();
+    }
 
     foreach ($stored as $file) {
         @unlink($file['path']);

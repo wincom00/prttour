@@ -30,7 +30,7 @@ try {
     if (!$accounts) {
         mbx_json(array('status' => 'error', 'message' => '등록된 메일 계정이 없습니다.'), 400);
     }
-    $folder = isset($_GET['folder']) && in_array($_GET['folder'], array('inbox', 'sent', 'trash'), true) ? $_GET['folder'] : '';
+    $folder = isset($_GET['folder']) ? (string)$_GET['folder'] : '';
     $result = array();
     $errors = array();
     $unreadInbox = 0;
@@ -38,6 +38,10 @@ try {
         $sync = new MailboxSync($db, $account, $MBX_FOLDERS);
         if ($folder !== '') {
             try {
+                $sync->syncFolderList();
+                if (!mbx_folder_allowed($db, $account, $folder, true)) {
+                    throw new RuntimeException('Unknown folder.');
+                }
                 $result[$account['email']] = array($folder => $sync->syncFolder($folder));
             } catch (Throwable $e) {
                 $result[$account['email']] = array($folder => 0);

@@ -7,6 +7,14 @@ include/dbconn.php
 *.pem
 *.key
 
+# OAuth client secret (Google Cloud / Entra 다운로드 파일)
+client_secret*.json
+**/client_secret*.json
+
+# 메일함 비밀값 (OAuth secret, 토큰 암호화 키) — 서버별로 따로 둠
+mailbox/config.local.php
+!mailbox/config.local.php.example
+
 # ===== Composer =====
 vendor/
 composer.lock

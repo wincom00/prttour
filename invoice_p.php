@@ -7,7 +7,7 @@
 	}
 
      if (!hasMenuAccess($division, $pdx, $sub)) {
-		
+
 		Misc::jvAlert("권한이 있는 메뉴가 아닙니다. 확인후 사용하세요.!!","");
 		exit;
     }
@@ -49,7 +49,7 @@
 	if ($revInfo['base_rate'] == "CAD") {
 		$pricep = $totamt/1.13;
 		$taxp = $totamt - $pricep;
-	} 
+	}
 	$rev_dbinfo = getinfo_dbMember($revInfo['userid']);
 	$rname=randname($revInfo['rand_id']);
 	$cpage =get_html('pay_1');
@@ -91,16 +91,16 @@
 				$rcap= "4인1실";
 			} else if ($row1['room_type'] == "1r5p") {
 				$rcap= "5인1실";
-			} 
+			}
 			$pickarr = explode("/",$row1['pick_area']);
 			$picknm=pickBaseInfo($pickarr[0],$pickarr[1]);
 			//print_r($picknm);
-			echo "<tr style='border: 1px solid #aaa;'>
-						<td style='padding: 10px;text-align:center;border: 1px solid #aaa;'>$k</td>
-						<td style='text-align:center;border: 1px solid #aaa;padding: 5px;'>{$row1['traveler_nm']}</td>
-						<td style='text-align:center;border: 1px solid #aaa;padding: 5px;'>$sexcap</td>
-						<td style='text-align:center;border: 1px solid #aaa;padding: 5px;'>$rcap</td>
-						<td style='text-align:center;border: 1px solid #aaa;padding: 5px;'>{$picknm['pick_name']} {$picknm['pick_time']} - {$picknm['pick_1desc']}</td>
+			echo "<tr>
+						<td class='cell-c cell-num'>$k</td>
+						<td class='cell-c cell-strong'>{$row1['traveler_nm']}</td>
+						<td class='cell-c'>$sexcap</td>
+						<td class='cell-c'>$rcap</td>
+						<td class='cell-c'>{$picknm['pick_name']} {$picknm['pick_time']} - {$picknm['pick_1desc']}</td>
 					</tr>";
 			$k++;
 		 }
@@ -108,8 +108,12 @@
 	}
     $cpage =get_html('pay_1');
 	$cont =get_html('in_1');
-	
-	
+	// 취소규정 셀 끝의 빈 줄 필러(<br>, &nbsp;) 제거 — 마지막 인사말 행이
+	// 불필요하게 다음 페이지로 밀리는 것을 방지 (DB 원본은 수정하지 않음)
+	$cont['content'] = preg_replace('/(?:\s|&nbsp;|<br\s*\/?>)+(?=<\/p>\s*<\/td>)/iu', '', $cont['content']);
+	$cont['content'] = preg_replace('/<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>\s*(?=<\/td>)/iu', '', $cont['content']);
+
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -118,141 +122,350 @@
 	<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
 	<title>Invoice</title>
 	<link href="//maxcdn.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
-	<link href="https://fonts.googleapis.com/css?family=Montserrat|Open+Sans|Roboto&display=swap" rel="stylesheet">
-	<link href="https://fonts.googleapis.com/css?family=Nanum+Gothic" rel="stylesheet">
-	<link href="css/invoice-f2.css" rel="stylesheet" id="invoice-css">
+	<link href="https://fonts.googleapis.com/css?family=Montserrat:400,600,700|Open+Sans|Roboto&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Nanum+Gothic:400,700,800" rel="stylesheet">
 
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-	
+
 </head>
-<style type="text/css" media="print">
-  @media print {
-  body {-webkit-print-color-adjust: exact;}
+<style type="text/css">
+  /* ---------- 기본 ---------- */
+  body {
+	  font-family: 'Nanum Gothic', 'Malgun Gothic', sans-serif;
+	  font-size: 13px;
+	  color: #2b3138;
+	  background: #fff;
+	  -webkit-font-smoothing: antialiased;
+	  -webkit-print-color-adjust: exact;
+	  print-color-adjust: exact;
   }
-	@page {
-		size:auto;
-		margin-left: 0px;
-		margin-right: 10px;
-		margin-top: 10px;
-		margin-bottom: 0px;
-		margin: 0;
-		-webkit-print-color-adjust: exact;
-	}
+  a:link, a:visited { color: #2b5d8c; text-decoration: none; font-weight: 700; }
+  a:hover { color: #1d4266; text-decoration: underline; }
+
+  /* ---------- 용지(시트) ---------- */
+  .sheet {
+	  max-width: 920px;
+	  margin: 16px auto 32px;
+	  background: #fff;
+	  padding: 24px 36px 40px;
+  }
+
+  /* ---------- 페이지 타이틀 ---------- */
+  .page-title {
+	  text-align: center;
+	  margin: 22px 0 4px;
+  }
+  .page-title h2 {
+	  display: inline-block;
+	  font-size: 21px;
+	  font-weight: 800;
+	  letter-spacing: 10px;
+	  text-indent: 10px;
+	  color: #22303e;
+	  padding-bottom: 8px;
+	  border-bottom: 2px solid #22303e;
+	  margin: 0;
+  }
+
+  /* ---------- 완료 안내 배너 ---------- */
+  .confim_book {
+	  text-align: center;
+	  font-size: 15px;
+	  font-weight: 700;
+	  color: #2b5d8c;
+	  letter-spacing: 1px;
+	  padding: 13px 0;
+	  border-top: 1px solid #2b5d8c;
+	  border-bottom: 1px solid #dfe3e8;
+	  background: #f7fafc;
+	  margin-bottom: 26px;
+  }
+
+  /* ---------- 섹션 헤더 ---------- */
+  .book_header {
+	  font-size: 15px;
+	  font-weight: 800;
+	  color: #22303e;
+	  padding: 4px 0 8px 10px;
+	  margin: 4px 0 10px;
+	  border-left: 3px solid #2b5d8c;
+	  border-bottom: 1px solid #e3e7ec;
+	  line-height: 1.5;
+  }
+
+  /* ---------- 공통 테이블 ---------- */
+  table.tbl {
+	  width: 100%;
+	  border-collapse: collapse;
+	  font-size: 13px;
+	  line-height: 1.7;
+	  margin-bottom: 6px;
+	  border-top: 2px solid #3a4a5c;
+	  border-bottom: 1px solid #c9cfd6;
+  }
+  table.tbl th, table.tbl td {
+	  border: 1px solid #e2e6ea;
+	  border-left: none;
+	  border-right: none;
+	  padding: 8px 12px;
+	  vertical-align: middle;
+  }
+  table.tbl td.label, table.tbl th.label {
+	  background: #f6f8fa;
+	  color: #45505c;
+	  font-weight: 700;
+	  text-align: center;
+	  white-space: nowrap;
+	  width: 13%;
+	  border-right: 1px solid #e2e6ea;
+  }
+  table.tbl thead th {
+	  background: #f6f8fa;
+	  color: #45505c;
+	  font-weight: 700;
+	  text-align: center;
+	  border-bottom: 1px solid #c9cfd6;
+	  padding: 9px 8px 7px;
+  }
+  table.tbl thead th h6 {
+	  margin: 1px 0 0;
+	  font-size: 10px;
+	  font-weight: 400;
+	  color: #8b95a1;
+	  letter-spacing: .5px;
+	  text-transform: uppercase;
+	  line-height: 1.2;
+  }
+  table.tbl .cell-c { text-align: center; }
+  table.tbl .cell-r { text-align: right; }
+  table.tbl .cell-strong { font-weight: 700; }
+  table.tbl .cell-num { color: #8b95a1; }
+  table.tbl .amount { text-align: right; font-family: 'Montserrat', 'Nanum Gothic', sans-serif; white-space: nowrap; }
+  table.tbl tr.row-total td {
+	  border-top: 2px solid #3a4a5c;
+	  background: #fbfcfd;
+	  font-weight: 700;
+	  padding-top: 10px;
+	  padding-bottom: 10px;
+  }
+  table.tbl tr.row-total td.amount { font-size: 15px; color: #22303e; }
+  table.tbl tr.row-sub td { background: #fbfcfd; font-weight: 700; }
+  table.tbl tr.row-due td { background: #fbfcfd; font-weight: 700; color: #b03030; }
+
+  /* ---------- 인보이스 영역 ---------- */
+  .invoice header {
+	  padding-bottom: 14px;
+	  margin-bottom: 22px;
+	  border-bottom: 2px solid #2b5d8c;
+  }
+  .invoice header img { width: 100%; height: auto; display: block; }
+  .invoice-title {
+	  text-align: center;
+	  font-family: 'Montserrat', sans-serif;
+	  font-size: 26px;
+	  font-weight: 700;
+	  letter-spacing: 8px;
+	  text-indent: 8px;
+	  color: #22303e;
+	  margin: 6px 0 24px;
+  }
+  .invoice .contacts { margin-bottom: 8px; }
+  .invoice-to h2.invoice-to {
+	  font-size: 12px;
+	  font-weight: 800;
+	  letter-spacing: 1px;
+	  color: #2b5d8c;
+	  margin: 0 0 7px;
+	  padding-bottom: 5px;
+	  border-bottom: 1px solid #e3e7ec;
+  }
+  .invoice-to h2.no-color {
+	  font-size: 17px;
+	  font-weight: 400;
+	  color: #22303e;
+	  margin: 0 0 2px;
+  }
+  .invoice-to div { color: #5a6572; }
+  .invoice-details { text-align: right; }
+  .invoice-details .invoice-id {
+	  display: inline-block;
+	  font-size: 13px;
+	  font-weight: 700;
+	  color: #22303e;
+	  background: #f6f8fa;
+	  border: 1px solid #dfe3e8;
+	  padding: 8px 16px;
+	  margin-top: 20px;
+  }
+  .tour-details { margin: 22px 0 0; }
+  .tour-details h2.invoice-to {
+	  font-size: 13px;
+	  font-weight: 800;
+	  letter-spacing: .5px;
+	  color: #22303e;
+	  margin: 0 0 9px;
+	  padding: 0 0 6px 10px;
+	  border-left: 3px solid #2b5d8c;
+	  border-bottom: 1px solid #e3e7ec;
+  }
+
+  /* ---------- 추가정보/취소규정 ---------- */
+  .terms-body { padding: 4px 2px 0; line-height: 1.85; color: #45505c; }
+  .terms-body .row { margin-left: 0; margin-right: 0; }
+
+  /* ---------- 인쇄용 페이지 여백 프레임 ----------
+     상하 @page 여백을 0으로 두면 브라우저 머리글/바닥글(URL·날짜)이 인쇄되지 않는다.
+     대신 thead/tfoot는 매 페이지마다 반복 출력되는 성질을 이용해
+     페이지 상하 여백을 확보한다. */
+  table.print-frame { width: 100%; border-collapse: collapse; }
+  table.print-frame > thead td.print-mt,
+  table.print-frame > tfoot td.print-mb { height: 0; padding: 0; }
+
+  @media print {
+	  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; }
+	  @page {
+		  size: auto;
+		  margin: 0 16mm;
+	  }
+	  .sheet { margin: 0; padding: 0; max-width: none; }
+	  table.print-frame > thead td.print-mt { height: 14mm; }
+	  table.print-frame > tfoot td.print-mb { height: 11mm; }
+	  /* 행이 페이지 경계에서 쪼개져 선과 내용이 분리되는 것 방지.
+	     주의: 취소규정(.terms-body)에는 여러 페이지 분량의 초대형 셀이 있으므로
+	     전체 tr/td에 걸면 빈 페이지가 생긴다. 마지막 인사말 행에만 적용할 것. */
+	  table.tbl tr,
+	  .terms-body table tr:last-child,
+	  .book_header,
+	  .tour-details h2.invoice-to { page-break-inside: avoid; }
+	  .book_header,
+	  .tour-details h2.invoice-to { page-break-after: avoid; }
+	  /* 취소규정을 살짝 압축해 마지막 인사말이 규정 마지막 페이지에
+	     함께 들어가도록 한다 (DB 인라인 스타일보다 우선하도록 !important) */
+	  .terms-body td { font-size: 12px !important; line-height: 1.55 !important; }
+	  .terms-body p { margin: 0 0 7px; }
+	  /* Bootstrap .row(display:flex)가 여러 페이지 분량의 취소규정을 감싸면
+	     print-frame 테이블과의 조각화(fragmentation) 충돌로 마지막에
+	     빈 페이지가 생긴다 — 인쇄 시에는 block으로 전환 */
+	  .terms-body .row { display: block !important; }
+  }
 </style>
 
 <body>
 	<!-- book info-->
+<table class="print-frame">
+	<thead><tr><td class="print-mt"></td></tr></thead>
+	<tfoot><tr><td class="print-mb"></td></tr></tfoot>
+	<tbody><tr><td>
 
-<br />
-<div style="text-align: center;margin-bottom:-10px;margin-top:10px;"><h2>예약내역</h2></div>
+<div class="page-title"><h2>예약내역</h2></div>
 <br />
 <form name=print id=print action='<?= $PHP_SELF ?>?division=<?=$division?>&pdx=<?=$pdx?>&sub=<?=$sub?>&r_code=<?=$r_code?>' method=post enctype="multipart/form-data">
   <input type=hidden name=r_code value="<?= $r_code ?>">
   <input type=hidden name=mode value="send_email">
-	<div id="invoice1">
-		<div class="text-center confim_book">예약이 완료되었습니다.</div>
-		<br/>
-		
+	<div id="invoice1" class="sheet">
+		<div class="confim_book">예약이 완료되었습니다.</div>
+
 		<div class="invoice1 overflow-auto">
 			<div style="min-width: 400px !important;">
 			  <main>
-			    
-				<div class="text-left book_header">1. 예약자 정보</div>
-				
+
+				<div class="book_header">1. 예약자 정보</div>
+
 
 				<?php if ($revInfo['pricet'] == 3) { ?>
-				<table style='width: 100%;line-height: 18px;text-align: left;border: 1px solid #aaa;font-size: 13px;'>
+				<table class="tbl">
 					<tbody>
-						 <tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2"  style="border: 1px solid #aaa;padding: 10px;">업체명</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$rname['kor_name']?></td>
-							<td colspan="2"  style="border: 1px solid #aaa;padding: 10px;">담당자명</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['book_pri']?></td>
+						<tr>
+							<td class="label">업체명</td>
+							<td width="37%"><?=$rname['kor_name']?></td>
+							<td class="label">담당자명</td>
+							<td width="37%"><?=$revInfo['book_pri']?></td>
 						</tr>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2"  style="text-align: center;border: 1px solid #aaa; padding: 10px;">이메일</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['book_email']?></td>
-							<td colspan="2"  style="text-align: center;border: 1px solid #aaa;">연락처</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['book_phone']?></td>
+						<tr>
+							<td class="label">이메일</td>
+							<td><?=$revInfo['book_email']?></td>
+							<td class="label">연락처</td>
+							<td><?=$revInfo['book_phone']?></td>
 						</tr>
 					</tbody>
 				</table>
 
 				<?php } else { ?>
-				<table style='width: 100%;line-height: 18px;text-align: left;border: 1px solid #aaa;font-size: 13px;'>
+				<table class="tbl">
 					<tbody>
-						 <tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2"  style="border: 1px solid #aaa;padding: 10px;">예약자명</td>
-							<td colspan="14" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['book_pri']?></td>
+						<tr>
+							<td class="label">예약자명</td>
+							<td colspan="3"><?=$revInfo['book_pri']?></td>
 						</tr>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2"  style="text-align: center;border: 1px solid #aaa; padding: 10px;">이메일</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['book_email']?></td>
-							<td colspan="2"  style="text-align: center;border: 1px solid #aaa;">연락처</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['book_phone']?></td>
+						<tr>
+							<td class="label">이메일</td>
+							<td width="37%"><?=$revInfo['book_email']?></td>
+							<td class="label">연락처</td>
+							<td width="37%"><?=$revInfo['book_phone']?></td>
 						</tr>
 					</tbody>
 				</table>
 				<?php }  ?>
-				
+
+				<br/>
 				<!-- 여행 예약정보 -->
-				<div class="text-left book_header">2. 여행 예약 정보</div>
-				<table style='width: 100%;line-height: 18px;text-align: left;border: 1px solid #aaa;font-size: 13px;'>
+				<div class="book_header">2. 여행 예약 정보</div>
+				<table class="tbl">
 					<tbody>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" width = '10%' style="border: 1px solid #aaa;padding: 10px;">여행명</td>
-							<td colspan="14" style="background: #fff;padding: 5px;text-align: left;"><?=$prodInfo['p_name']?></td>
+						<tr>
+							<td class="label">여행명</td>
+							<td colspan="3"><?=$prodInfo['p_name']?></td>
 						</tr>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">여행기간</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['stDate']?>(<?=$sweekday?>)~<?=$revInfo['edDate']?>(<?=$eweekday?>)</td>
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">통합예약번호</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['grand_revNo']?></td>
+						<tr>
+							<td class="label">여행기간</td>
+							<td width="37%"><?=$revInfo['stDate']?>(<?=$sweekday?>)~<?=$revInfo['edDate']?>(<?=$eweekday?>)</td>
+							<td class="label">통합예약번호</td>
+							<td width="37%"><?=$revInfo['grand_revNo']?></td>
 						</tr >
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">여행인원</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['p_cnt']?>인</td>
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">예약번호</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['reserveCode']?></td>
+						<tr>
+							<td class="label">여행인원</td>
+							<td><?=$revInfo['p_cnt']?>인</td>
+							<td class="label">예약번호</td>
+							<td><?=$revInfo['reserveCode']?></td>
 						</tr >
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">예약일</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['revDate']?></td>
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">예약상담원</td>
-							<td colspan="6" style="background: #fff;padding: 5px;text-align: left;"><?=$rev_dbinfo['kor_name']?></td>
+						<tr>
+							<td class="label">예약일</td>
+							<td><?=$revInfo['revDate']?></td>
+							<td class="label">예약상담원</td>
+							<td><?=$rev_dbinfo['kor_name']?></td>
 						</tr>
 						<?php if ($revInfo['pricet'] != 3) { ?>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">여행비용</td>
-							<td colspan="14" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['base_rate']?> <?php echo number_format($revInfo['last_sale']);?> (세금포함)  </td>
+						<tr>
+							<td class="label">여행비용</td>
+							<td colspan="3"><?=$revInfo['base_rate']?> <?php echo number_format($revInfo['last_sale']);?> (세금포함)  </td>
 						</tr>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">방갯수</td>
-							<td colspan="14" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['room_cnt']?> </td>
+						<tr>
+							<td class="label">방갯수</td>
+							<td colspan="3"><?=$revInfo['room_cnt']?> </td>
 						</tr>
 						<?php } else { ?>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">방갯수</td>
-							<td colspan="14" style="background: #fff;padding: 5px;text-align: left;"><?=$revInfo['room_cnt']?> </td>
+						<tr>
+							<td class="label">방갯수</td>
+							<td colspan="3"><?=$revInfo['room_cnt']?> </td>
 						</tr>
 
 						<?php }  ?>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">포함사항</td>
-							<td colspan="14" style="background: #fff;padding: 5px;text-align: left;"><?=nl2br($prodInfo['p_include'])?></td>
+						<tr>
+							<td class="label">포함사항</td>
+							<td colspan="3"><?=nl2br($prodInfo['p_include'])?></td>
 						</tr >
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">불포함사항</td>
-							<td colspan="14" style="background: #fff;padding: 5px;text-align: left;"><?=nl2br($prodInfo['p_uninclude'])?></td>
+						<tr>
+							<td class="label">불포함사항</td>
+							<td colspan="3"><?=nl2br($prodInfo['p_uninclude'])?></td>
 						</tr>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">선택관광</td>
-							<td colspan="14" style="background: #fff;padding: 5px;text-align: left;"><?=nl2br($prodInfo['p_otrip'])?>
+						<tr>
+							<td class="label">선택관광</td>
+							<td colspan="3"><?=nl2br($prodInfo['p_otrip'])?>
 							</td>
 						</tr>
-						<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							<td colspan="2" style="border: 1px solid #aaa;padding: 10px;">준비물</td>
-							<td colspan="14" style="background: #fff;padding: 5px;text-align: left;"><?=nl2br($prodInfo['p_prepare'])?>
+						<tr>
+							<td class="label">준비물</td>
+							<td colspan="3"><?=nl2br($prodInfo['p_prepare'])?>
 							</td>
 						</tr>
 						<!--<tr>
@@ -271,40 +484,42 @@
 							</td>
 						</tr>-->
 					</tbody>
-				</table>	
+				</table>
+				<br/>
 				<!-- 여행자 정보 -->
-				<div class="text-left book_header">3. 여행자 정보</div>
+				<div class="book_header">3. 여행자 정보</div>
 				<div class="row">
-						<table style='width: 100%;line-height: 18px;text-align: left;border: 1px solid #aaa;font-size: 13px;margin-right:10px;'>
-							<tbody>
-								<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-									<th style="padding: 10px;border: 1px solid #aaa;" width='5%'>NO.</th>
-									<th style="border: 1px solid #aaa;" width='15%'>성명</th>
-									<th style="border: 1px solid #aaa;" width='15%'>성별</th>
-									<th style="border: 1px solid #aaa;" width='15%'>객실</th>
-									<th style="border: 1px solid #aaa;">탑승지</th>
+					<div class="col-sm-12">
+						<table class="tbl">
+							<thead>
+								<tr>
+									<th width='5%'>NO.</th>
+									<th width='15%'>성명</th>
+									<th width='15%'>성별</th>
+									<th width='15%'>객실</th>
+									<th>탑승지</th>
 								</tr>
-							
-							
+							</thead>
+							<tbody>
 								<?=tourplist()?>
-								
 							</tbody>
 						</table>
 					</div>
 				</div>
-				
-				<div class="text-left book_header">4. 추가 정보</div>
+
+				<br/>
+				<div class="book_header">4. 추가 정보</div>
 				<div class="row">
-						
-					<div class="col-sm-12" ><?=Trim($board_note)?></div>
+
+					<div class="col-sm-12 terms-body" ><?=Trim($board_note)?></div>
 				</div>
 			  </main>
 			</div>
 		  </div>
 	</div>
-	
+
 	<!-- invoice page -->
-	<div id="invoice" style="margin-top:30px; 0;page-break-before: always;">
+	<div id="invoice" class="sheet" style="margin-top:30px;page-break-before: always;">
 		<div class="invoice overflow-auto">
 			<div style="min-width: 600px">
 				<header>
@@ -319,121 +534,103 @@
 							<div><B>한국사무소: </B> 서울 종로구 종로 19, A동 714호 종로1가, 르메이에르 종로타운1, TEL: 02-720-7767, FAX: 02-720-7769 </div>
 							<div>GST Registration No.  8574 12191RT0001 www.parantours.com </div>
 							<div>TICO Registration No. 50015723  KATALK: 파란여행 admin@parantours.com </div>-->
-							<img src="http://www.myprt.biz/img/top_in3.jpg" data-holder-rendered="true" height="120px" width="100%"/>
+							<img src="http://www.myprt.biz/img/top_in3.jpg" data-holder-rendered="true"/>
 
 						</div>
 					</div>
 				</header>
 				<main>
-				    <div class="row contacts">
-						<div class="col invoice-center">
-							<h2 style='text-align:center;font-weight: 900;'>INVOICE
-							</h2>
-						</div>
-					</div>
+					<h2 class="invoice-title">INVOICE</h2>
 					<div class="row contacts">
 						<div class="col invoice-to">
 							<h2 class="invoice-to">고객정보 | Customer(s)</h2>
-							<h2 class= "no-color"><b><?=$revInfo['book_pri']?></b> 님</h2>
+							<h2 class="no-color"><b><?=$revInfo['book_pri']?></b> 님</h2>
 							<div><?=$revInfo['book_phone']?></div>
-							
+
 						</div>
-						
+
 						<div class="col invoice-details">
 							<h5 class="invoice-id">예약번호 : <?=$r_code?>
 							</h5>
 						</div>
 					</div>
-					<br />
 					<div class="row tour-details">
 						<div class="col-md-12 invoice-to">
 							<h2 class="invoice-to">예약내역 ㅣTour Details</h2>
 						</div>
 					</div>
-					<table style='width: 100%;line-height: inherit;text-align: left;border: 1px solid #aaa;font-size: 13px;'>
+					<table class="tbl">
 						<thead>
-							 <tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							
-								<th style="border: 1px solid #aaa;">여행상품<h6 style="margin-bottom: .3rem !important;padding-top:1px ;line-height: .5"><font size =1>Tour Package</h6></th>
-								<th style="border: 1px solid #aaa;">출발일<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Departure</h6></th>
-								<th style="border: 1px solid #aaa;">도착일<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Arrival</h6></th>
-								<th style="border: 1px solid #aaa;">인원<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Travelers</h6></th>
-								<th style="border: 1px solid #aaa;">투어비<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Total Price</h6></th>
+							 <tr>
+								<th>여행상품<h6>Tour Package</h6></th>
+								<th>출발일<h6>Departure</h6></th>
+								<th>도착일<h6>Arrival</h6></th>
+								<th>인원<h6>Travelers</h6></th>
+								<th width="18%">투어비<h6>Total Price</h6></th>
 							</tr>
 						</thead>
 						<tbody>
-							<tr style="background: #fff;font-weight: 400;text-align: center;">
-								<td style='text-align: left;border: 1px solid #aaa;padding: 5px;'><?=$revInfo['p_name']?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$revInfo['stDate']?>(<?=$seweekday?>)</td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$revInfo['edDate']?>(<?=$eeweekday?>)</td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$revInfo['p_cnt']?></td>
-								<td style='text-align: right;border: 1px solid #aaa;' width="18%"><?=$sign?> <?php echo number_format($lasttot,2);?></td>
+							<tr>
+								<td><?=$revInfo['p_name']?></td>
+								<td class="cell-c"><?=$revInfo['stDate']?>(<?=$seweekday?>)</td>
+								<td class="cell-c"><?=$revInfo['edDate']?>(<?=$eeweekday?>)</td>
+								<td class="cell-c"><?=$revInfo['p_cnt']?></td>
+								<td class="amount"><?=$sign?> <?php echo number_format($lasttot,2);?></td>
 							</tr>
-							<tr style="background: #fff;font-weight: 400;text-align: center;">
-								<td style='text-align: left;border: 1px solid #aaa;padding: 5px;'>항공금액</td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?>  <?php echo number_format($airamt['samt'],2);?></td>
+							<tr>
+								<td>항공금액</td>
+								<td class="cell-c"></td>
+								<td class="cell-c"></td>
+								<td class="cell-c"></td>
+								<td class="amount"><?=$sign?> <?php echo number_format($airamt['samt'],2);?></td>
 							</tr>
 							<?php if ($cruisetot > 0) { ?>
-							<tr style="background: #fff;font-weight: 400;text-align: center;">
-								<td style='text-align: left;border: 1px solid #aaa;padding: 5px;'>크루즈금액</td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?>  <?php echo number_format($cruisetot,2);?></td>
+							<tr>
+								<td>크루즈금액</td>
+								<td class="cell-c"></td>
+								<td class="cell-c"></td>
+								<td class="cell-c"></td>
+								<td class="amount"><?=$sign?> <?php echo number_format($cruisetot,2);?></td>
 							</tr>
 							<?php } ?>
-							<tr style="background: #fff;font-weight: 400;text-align: center;">
-								<td style='text-align: left;border: 1px solid #aaa;padding: 5px;'>추가금액</td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?>  <?php echo number_format($lastadd,2);?></td>
-							</tr>
-							<tr style="background: #fff;font-weight: 400;text-align: center;">
-								<td style='text-align: left;border: 1px solid #aaa;padding: 5px;'>할인금액</td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: center;border: 1px solid #aaa;'></td>
-								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?>  <?php echo number_format($disamt['amt'],2);?></td>
-							</tr>
-							
 							<tr>
-								<td style='text-align: left; padding: 5px;'><span ><b>최종 결제금액</b></span></td>
-								<td colspan="3" style='text-align: center; '></td>
-								<td style='text-align: right;font-weight: bold;font-size: 15px;' width="18%"><?=$sign?> <?php echo number_format($totamt,2);?>&nbsp;</td>
+								<td>추가금액</td>
+								<td class="cell-c"></td>
+								<td class="cell-c"></td>
+								<td class="cell-c"></td>
+								<td class="amount"><?=$sign?> <?php echo number_format($lastadd,2);?></td>
 							</tr>
-						
-							
-							
+							<tr>
+								<td>할인금액</td>
+								<td class="cell-c"></td>
+								<td class="cell-c"></td>
+								<td class="cell-c"></td>
+								<td class="amount"><?=$sign?> <?php echo number_format($disamt['amt'],2);?></td>
+							</tr>
 
-							
-							<tr>
-								<td style='text-align: left; padding: 5px;font-weight: 900;'><span ><b>최종 결제금액</b></span></td>
-								<td colspan="3" style='text-align: center; '></td>
-								<td style='text-align: right;font-weight: bold;font-size: 15px;' width="18%"><?=$sign?> <?php echo number_format($totamt,2);?>&nbsp;</td>
+							<tr class="row-total">
+								<td><b>최종 결제금액</b></td>
+								<td colspan="3"></td>
+								<td class="amount"><?=$sign?> <?php echo number_format($totamt,2);?>&nbsp;</td>
 							</tr>
-							
+
 						</tbody>
 					</table>
 					<?php if (count($airList) > 0) { ?>
-					<br />
 					<div class="row tour-details">
 						<div class="col-md-12 invoice-to">
 							<h2 class="invoice-to">항공내역 ㅣAirline Details</h2>
 						</div>
 					</div>
-					<table style='width: 100%;line-height: inherit;text-align: left;border: 1px solid #aaa;font-size: 13px;'>
+					<table class="tbl">
 						<thead>
-							<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-								<th style="border: 1px solid #aaa;">출발일<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Date</h6></th>
-								<th style="border: 1px solid #aaa;">구간<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Route</h6></th>
-								<th style="border: 1px solid #aaa;">편명<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Flight</h6></th>
-								<th style="border: 1px solid #aaa;">PNR / TICKET#</th>
-								<th style="border: 1px solid #aaa;">인원<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>PAX</h6></th>
-								<th style="border: 1px solid #aaa;">판매금액<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Amount</h6></th>
+							<tr>
+								<th>출발일<h6>Date</h6></th>
+								<th>구간<h6>Route</h6></th>
+								<th>편명<h6>Flight</h6></th>
+								<th>PNR / TICKET#</th>
+								<th>인원<h6>PAX</h6></th>
+								<th width="18%">판매금액<h6>Amount</h6></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -441,34 +638,33 @@
 							$a_route = trim($av['a_start_airport']) . (trim($av['a_stop_airport']) != "" ? " → " . $av['a_stop_airport'] : "");
 							$a_pnrtk = trim($av['a_pnr_number']) . (trim($av['a_tk_number']) != "" ? " / " . $av['a_tk_number'] : "");
 						?>
-							<tr style="background: #fff;font-weight: 400;text-align: center;">
-								<td style='text-align: center;border: 1px solid #aaa;padding: 5px;'><?=$av['a_airline_start']?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$a_route?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$av['a_airport_name']?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$a_pnrtk?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$av['a_airport_cnt']?></td>
-								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?> <?php echo number_format($av['a_airline_amt'],2);?></td>
+							<tr>
+								<td class="cell-c"><?=$av['a_airline_start']?></td>
+								<td class="cell-c"><?=$a_route?></td>
+								<td class="cell-c"><?=$av['a_airport_name']?></td>
+								<td class="cell-c"><?=$a_pnrtk?></td>
+								<td class="cell-c"><?=$av['a_airport_cnt']?></td>
+								<td class="amount"><?=$sign?> <?php echo number_format($av['a_airline_amt'],2);?></td>
 							</tr>
 						<?php } ?>
 						</tbody>
 					</table>
 					<?php } ?>
 					<?php if (count($cruiseList) > 0) { ?>
-					<br />
 					<div class="row tour-details">
 						<div class="col-md-12 invoice-to">
 							<h2 class="invoice-to">크루즈내역 ㅣCruise Details</h2>
 						</div>
 					</div>
-					<table style='width: 100%;line-height: inherit;text-align: left;border: 1px solid #aaa;font-size: 13px;'>
+					<table class="tbl">
 						<thead>
-							<tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-								<th style="border: 1px solid #aaa;">출항/하선<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Sail / Return</h6></th>
-								<th style="border: 1px solid #aaa;">크루즈/선박<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Line / Ship</h6></th>
-								<th style="border: 1px solid #aaa;">출항/입항항구<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Ports</h6></th>
-								<th style="border: 1px solid #aaa;">객실/예약번호<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Room / Booking#</h6></th>
-								<th style="border: 1px solid #aaa;">인원<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>PAX</h6></th>
-								<th style="border: 1px solid #aaa;">판매금액<h6 style="margin-bottom: .1rem !important;line-height: .5"><font size =1>Amount</h6></th>
+							<tr>
+								<th>출항/하선<h6>Sail / Return</h6></th>
+								<th>크루즈/선박<h6>Line / Ship</h6></th>
+								<th>출항/입항항구<h6>Ports</h6></th>
+								<th>객실/예약번호<h6>Room / Booking#</h6></th>
+								<th>인원<h6>PAX</h6></th>
+								<th width="18%">판매금액<h6>Amount</h6></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -478,33 +674,31 @@
 							$c_ports = trim($cv['c_depart_port']) . (trim($cv['c_arrive_port']) != "" ? " → " . $cv['c_arrive_port'] : "");
 							$c_roombook = trim($cv['c_room_type']) . (trim($cv['c_book_no']) != "" ? " / " . $cv['c_book_no'] : "");
 						?>
-							<tr style="background: #fff;font-weight: 400;text-align: center;">
-								<td style='text-align: center;border: 1px solid #aaa;padding: 5px;'><?=$c_period?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$c_lineship?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$c_ports?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$c_roombook?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?=$cv['c_pax']?></td>
-								<td style='text-align: right;border: 1px solid #aaa;padding: 5px;' width="18%"><?=$sign?> <?php echo number_format($cv['c_sale_amt'],2);?></td>
+							<tr>
+								<td class="cell-c"><?=$c_period?></td>
+								<td class="cell-c"><?=$c_lineship?></td>
+								<td class="cell-c"><?=$c_ports?></td>
+								<td class="cell-c"><?=$c_roombook?></td>
+								<td class="cell-c"><?=$cv['c_pax']?></td>
+								<td class="amount"><?=$sign?> <?php echo number_format($cv['c_sale_amt'],2);?></td>
 							</tr>
 						<?php } ?>
 						</tbody>
 					</table>
 					<?php } ?>
-					<br />
 					<div class="row tour-details">
 						<div class="col-md-12 invoice-to">
 							<h2 class="invoice-to">결제내역 ㅣPayments</h2>
 						</div>
 					</div>
-					<table style='width: 100%;line-height: inherit;text-align: left;border: 1px solid #aaa;font-size: 13px;'>
+					<table class="tbl">
 						<thead>
-							 <tr style="background: #eee;font-weight: bold;text-align: center;padding: 10px;border: 1px solid #aaa;">
-							
-								<th width="20%" style="border: 1px solid #aaa;">결제일<h6 style="margin-bottom: .3rem !important;padding-top:1px ;line-height: .5"><font size =1>Date</h6></th>
-								<th width="15%" style="border: 1px solid #aaa;">결제방법<h6 style="margin-bottom: .3rem !important;padding-top:1px ;line-height: .5"><font size =1>Method</h6></th>
-								<th width="30%"style="border: 1px solid #aaa;">결제금액<h6 style="margin-bottom: .3rem !important;padding-top:1px ;line-height: .5"><font size =1>Paid Amount</h6></th>
-								
-								<th width="15%" style="border: 1px solid #aaa;">담당자<h6 style="margin-bottom: .3rem !important;padding-top:1px ;line-height: .5"><font size =1>Agent</h6></th>
+							 <tr>
+								<th width="20%">결제일<h6>Date</h6></th>
+								<th width="15%">결제방법<h6>Method</h6></th>
+								<th width="30%">결제금액<h6>Paid Amount</h6></th>
+
+								<th width="15%">담당자<h6>Agent</h6></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -516,49 +710,49 @@
 									$i = 0;
 									if ($cntr > 0) {
 										while($row = mysql_fetch_assoc($rstr)):
-										  
+
 										   $rate = "";
 										   switch ($row['pay_method'])
 										   {
-												case "cash" : 
+												case "cash" :
 													$cappay = "현금";
-													break;   
-												case "creditcard" : 
+													break;
+												case "creditcard" :
 													$cappay = "신용카드웹";
 													break;
-												case "debitcard" : 
+												case "debitcard" :
 													$cappay = "데빗";
 													break;
-												
-												case "bcreditcard" : 
+
+												case "bcreditcard" :
 													$cappay = "신용카드 자사단말기";
-													break; 
-												case "check" : 
+													break;
+												case "check" :
 													$cappay = "체크";
-													break; 
-												case "banktransfer" : 
+													break;
+												case "banktransfer" :
 													$cappay = "은행송금";
-													break; 
-												
-												case "fundtransfer" : 
+													break;
+
+												case "fundtransfer" :
 													$cappay = "금액이동";
 													break;
-												case "airsys" : 
+												case "airsys" :
 													$cappay = "항공시스템";
-													break; 
-												case "crsys" : 
+													break;
+												case "crsys" :
 													$cappay = "크루즈시스템";
-													break;		
-												case "gift" : 
+													break;
+												case "gift" :
 													$cappay = "상품권및기타";
 													break;
-												default : 
+												default :
 													$cappay = "";
-													break; 
-												
+													break;
+
 											}
 											if ($row['b_rate'] == "CAD") {
-												 
+
 												$amtt=$row['payment'] / 1.13 ;
 												$tax = $row['payment'] - $amtt;
 												if ($row['rate_m'] != '0.0000') {
@@ -566,9 +760,9 @@
 												}
 												$sign1 = "C$";
 
-											} else { 
+											} else {
 												$tax = 0;
-												
+
 												if ($row['rate_m'] != '0.0000') {
 												  $rate ="<br />(Rate : {$row['rate_m']})";
 												}
@@ -592,51 +786,50 @@
 											$pay_dbinfo = getinfo_dbMember($row['register']);
 
 						?>
-							<tr style="background: #fff;font-weight: 400;text-align: center;">
-								<td style='text-align: left;border: 1px solid #aaa;padding: 5px;'><?=$row['wdate']?></td>
-								<td style='text-align: center;border: 1px solid #aaa;'><?php echo $cappay; ?></td>
-								<td width="20%" style='text-align: center;border: 1px solid #aaa;'><?=$pamt?><?php if ($row['pay_method']=="creditcard") { echo "<br> (".$row['pay_info'].")";  }?></td>
-								
-								<td style='text-align: center;border: 1px solid #aaa;' width="18%"><?=$pay_dbinfo['kor_name']?></td>
+							<tr>
+								<td><?=$row['wdate']?></td>
+								<td class="cell-c"><?php echo $cappay; ?></td>
+								<td class="cell-c"><?=$pamt?><?php if ($row['pay_method']=="creditcard") { echo "<br> (".$row['pay_info'].")";  }?></td>
+
+								<td class="cell-c"><?=$pay_dbinfo['kor_name']?></td>
 							</tr>
-							
+
 						<?php
 										$i++;
 						                endwhile;
-									
+
 									} else {
 						?>
 
 						<?php
-						              
+
 									}
 						?>
-							<tr style='border-bottom: 1px solid #aaa;'>
-								<td style='text-align: left; padding: 5px;'><span >TOTAL PAID</span></td>
-								<td  style='text-align: center; '></td>
-								<td  style='text-align: center; '><?=$sign?> <?php echo number_format(
+							<tr class="row-sub">
+								<td>TOTAL PAID</td>
+								<td class="cell-c"></td>
+								<td class="cell-c"><?=$sign?> <?php echo number_format(
 								$totpay,2);?></td>
-								<td style='text-align: right;' width="18%"></td>
+								<td></td>
 							</tr>
-							<tr>
-								<td style='text-align: left; padding: 5px;'><span >BALANCE DUE</span></td>
-								<td  style='text-align: center; '></td>
-								<td  style='text-align: center; '><?=$sign?> <?php echo number_format(
+							<tr class="row-due">
+								<td>BALANCE DUE</td>
+								<td class="cell-c"></td>
+								<td class="cell-c"><?=$sign?> <?php echo number_format(
 								$revInfo['last_bal'],2);?></td>
-								<td style='text-align: right;' width="18%"></td>
+								<td></td>
 							</tr>
 						</tbody>
 					</table>
-					
-					<br/>
+
 					<div class="row tour-details">
 						<div class="col-md-12 invoice-to">
 							<h2 class="invoice-to">변경 및 취소규정 | Changes & Cancellation</h2>
 						</div>
 					</div>
-						
-					<div style="margin-top: 15px;padding-left: 0px !important;">
-						
+
+					<div class="terms-body">
+
 						<div class="row">
 						    <?=$cont['content']?>
 							<!--<table border=0 style="border : 0;width: 100%;line-height: inherit;text-align: left;">
@@ -697,25 +890,28 @@
 								</tr>
 							</table>-->
 						</div>
-						
-						
+
+
 					</div>
-					
+
 				</main>
 			</div>
 			<div></div>
 		</div>
 	</div>
-	
+
 </form>
+
+	</td></tr></tbody>
+</table>
     <script src="ckeditor/ckeditor.js"></script>
 	<script>
 	    $(document).ready(function () {
-			window.print();	
+			window.print();
 		});
-		
+
 	</script>
 </body>
-</html>	
+</html>
 
- 
+

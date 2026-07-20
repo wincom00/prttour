@@ -34,30 +34,57 @@ try {
             $smtpPort = isset($_POST['smtp_port']) ? (int)$_POST['smtp_port'] : 587;
             $appPassword = isset($_POST['app_password']) ? (string)$_POST['app_password'] : '';
             $provider = isset($_POST['provider']) ? strtolower(trim($_POST['provider'])) : 'gmail';
+            $authType = isset($_POST['auth_type']) ? strtolower(trim((string)$_POST['auth_type'])) : 'password';
+            if (!in_array($authType, array('password', 'oauth2'), true)) {
+                $authType = 'password';
+            }
+            $oauthProvider = isset($_POST['oauth_provider']) ? strtolower(trim((string)$_POST['oauth_provider'])) : '';
+            if (!in_array($oauthProvider, array('google', 'microsoft'), true)) {
+                $oauthProvider = '';
+            }
             if (!isset($GLOBALS['MBX_PROVIDERS'][$provider])) {
                 $provider = 'gmail';
+            }
+            if ($authType === 'oauth2' && $oauthProvider === '') {
+                $oauthProvider = ($provider === 'microsoft365' || $provider === 'outlook') ? 'microsoft' : 'google';
             }
             $isActive = isset($_POST['is_active']) ? 1 : 0;
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 throw new RuntimeException('이메일 형식이 올바르지 않습니다.');
             }
+            $existingAccount = ($mode === 'edit' && $id > 0) ? mbx_get_account($db, $id, false) : null;
+            if ($authType === 'password' && $appPassword === '' && (!$existingAccount || trim((string)$existingAccount['app_password']) === '')) {
+                throw new RuntimeException('앱 비밀번호가 필요합니다.');
+            }
             if ($mode === 'add') {
-                if ($appPassword === '') {
-                    throw new RuntimeException('앱 비밀번호가 필요합니다.');
-                }
+                $storePassword = $authType === 'oauth2' ? null : $appPassword;
                 // 소유자는 본인으로 고정, 공통 지정은 불가(0)
-                $stmt = mbx_stmt($db, "INSERT INTO mailbox_accounts (email, display_name, imap_host, imap_port, smtp_host, smtp_port, app_password, provider, is_active, sort_order, owner_userid, is_common) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0)", 'sssisissis', array($email, $display, $imapHost, $imapPort, $smtpHost, $smtpPort, $appPassword, $provider, $isActive, $myId));
+                $stmt = mbx_stmt($db, "INSERT INTO mailbox_accounts (email, display_name, imap_host, imap_port, smtp_host, smtp_port, app_password, provider, auth_type, oauth_provider, is_active, sort_order, owner_userid, is_common) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0)", 'sssisissssis', array($email, $display, $imapHost, $imapPort, $smtpHost, $smtpPort, $storePassword, $provider, $authType, $oauthProvider, $isActive, $myId));
                 mysqli_stmt_close($stmt);
                 $message = '내 계정을 추가했습니다.';
             } else {
-                if ($appPassword !== '') {
-                    $stmt = mbx_stmt($db, "UPDATE mailbox_accounts SET email=?, display_name=?, imap_host=?, imap_port=?, smtp_host=?, smtp_port=?, app_password=?, provider=?, is_active=? WHERE id=? AND owner_userid=?", 'sssisissiis', array($email, $display, $imapHost, $imapPort, $smtpHost, $smtpPort, $appPassword, $provider, $isActive, $id, $myId));
+                if ($appPassword !== '' || $authType === 'oauth2') {
+                    $storePassword = $authType === 'oauth2' ? null : $appPassword;
+                    $stmt = mbx_stmt($db, "UPDATE mailbox_accounts SET email=?, display_name=?, imap_host=?, imap_port=?, smtp_host=?, smtp_port=?, app_password=?, provider=?, auth_type=?, oauth_provider=?, is_active=? WHERE id=? AND owner_userid=?", 'sssisissssiis', array($email, $display, $imapHost, $imapPort, $smtpHost, $smtpPort, $storePassword, $provider, $authType, $oauthProvider, $isActive, $id, $myId));
                 } else {
-                    $stmt = mbx_stmt($db, "UPDATE mailbox_accounts SET email=?, display_name=?, imap_host=?, imap_port=?, smtp_host=?, smtp_port=?, provider=?, is_active=? WHERE id=? AND owner_userid=?", 'sssisisiis', array($email, $display, $imapHost, $imapPort, $smtpHost, $smtpPort, $provider, $isActive, $id, $myId));
+                    $stmt = mbx_stmt($db, "UPDATE mailbox_accounts SET email=?, display_name=?, imap_host=?, imap_port=?, smtp_host=?, smtp_port=?, provider=?, auth_type=?, oauth_provider=?, is_active=? WHERE id=? AND owner_userid=?", 'sssisisssiis', array($email, $display, $imapHost, $imapPort, $smtpHost, $smtpPort, $provider, $authType, $oauthProvider, $isActive, $id, $myId));
                 }
                 mysqli_stmt_close($stmt);
                 $message = '내 계정을 수정했습니다.';
             }
+        } elseif ($mode === 'folders_sync' && $id > 0) {
+            $target = mbx_get_account($db, $id, false);
+            if (!$target || (string)$target['owner_userid'] !== $myId) { throw new RuntimeException('Own account only.'); }
+            global $MBX_FOLDERS;
+            $sync = new MailboxSync($db, $target, $MBX_FOLDERS);
+            $sync->syncFolderList(true);
+            $message = 'Folder list updated. Spam folders are excluded.';
+        } elseif ($mode === 'folders_save' && $id > 0) {
+            $target = mbx_get_account($db, $id, false);
+            if (!$target || (string)$target['owner_userid'] !== $myId) { throw new RuntimeException('Own account only.'); }
+            $visibleFolders = isset($_POST['visible_folders']) && is_array($_POST['visible_folders']) ? $_POST['visible_folders'] : array();
+            mbx_save_folder_visibility($db, $id, $visibleFolders);
+            $message = 'Folder visibility saved.';
         } elseif ($mode === 'del' && $id > 0) {
             $msgRows = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT id FROM mailbox_messages WHERE account_id=?", 'i', array($id)));
             $msgIds = array();
@@ -100,7 +127,38 @@ if ($edit && (string)$edit['owner_userid'] !== $myId) {
       <div class="col-sm-7">
         <h3>내 메일 계정</h3>
         <p class="help-block">본인 이메일 계정을 직접 등록·수정할 수 있습니다. 공통 이메일은 관리자가 지정합니다.</p>
-        <table class="table table-bordered table-hover">
+        <?php if ($folderAccount): ?>
+        <h4>Folder settings: <?php echo mbx_h($folderAccount['email']); ?></h4>
+        <form method="post" style="margin-bottom:10px">
+          <input type="hidden" name="mode" value="folders_sync">
+          <input type="hidden" name="id" value="<?php echo (int)$folderAccount['id']; ?>">
+          <button type="submit" class="btn btn-default btn-sm"><i class="fa fa-refresh"></i> Fetch Gmail folders</button>
+          <span class="help-block" style="display:inline;margin-left:8px">Spam folders are excluded.</span>
+        </form>
+        <?php if ($folderRows): ?>
+        <form method="post">
+          <input type="hidden" name="mode" value="folders_save">
+          <input type="hidden" name="id" value="<?php echo (int)$folderAccount['id']; ?>">
+          <table class="table table-bordered table-condensed">
+            <thead><tr><th width="70">Visible</th><th>Folder</th><th>IMAP name</th></tr></thead>
+            <tbody>
+            <?php foreach ($folderRows as $frow): $fkey = (string)$frow['folder_key']; ?>
+              <tr>
+                <td><input type="checkbox" name="visible_folders[]" value="<?php echo mbx_h($fkey); ?>" <?php echo (int)$frow['is_visible'] ? 'checked' : ''; ?>></td>
+                <td><?php echo mbx_h(mbx_folder_display_name($frow)); ?></td>
+                <td><?php echo mbx_h($frow['imap_name']); ?></td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="fa fa-save"></i> Save</button>
+          <a href="<?php echo mbx_h(mbx_plugin_url('my_account.php')); ?>" class="btn btn-default btn-sm">Close</a>
+        </form>
+        <?php else: ?>
+          <div class="alert alert-info">No folders have been fetched yet. Run Fetch Gmail folders first.</div>
+        <?php endif; ?>
+        <hr>
+        <?php endif; ?>        <table class="table table-bordered table-hover">
           <thead><tr><th>이메일</th><th>표시명</th><th>IMAP</th><th>상태</th><th width="150">관리</th></tr></thead>
           <tbody>
           <?php if (!$accounts): ?>
@@ -115,6 +173,7 @@ if ($edit && (string)$edit['owner_userid'] !== $myId) {
               <td>
                 <a class="btn btn-xs btn-warning" href="<?php echo mbx_h(mbx_plugin_url('my_account.php?edit=' . (int)$row['id'])); ?>"><i class="fa fa-edit"></i></a>
                 <button class="btn btn-xs btn-info btn-test" data-id="<?php echo (int)$row['id']; ?>"><i class="fa fa-plug"></i></button>
+                <a class="btn btn-xs btn-default" href="<?php echo mbx_h(mbx_plugin_url('my_account.php?folders=' . (int)$row['id'])); ?>"><i class="fa fa-folder-open-o"></i></a>
                 <form method="post" style="display:inline" onsubmit="return confirm('삭제하시겠습니까?');">
                   <input type="hidden" name="mode" value="del"><input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
                   <button class="btn btn-xs btn-danger" type="submit"><i class="fa fa-trash"></i></button>
@@ -130,7 +189,10 @@ if ($edit && (string)$edit['owner_userid'] !== $myId) {
         <?php
           $curProvider = $edit && isset($edit['provider']) && $edit['provider'] !== '' ? strtolower($edit['provider']) : 'gmail';
           if (!isset($MBX_PROVIDERS[$curProvider])) { $curProvider = 'gmail'; }
-        ?>
+          $curAuthType = $edit && isset($edit['auth_type']) && $edit['auth_type'] === 'oauth2' ? 'oauth2' : 'password';
+          $curOAuthProvider = $edit && isset($edit['oauth_provider']) && $edit['oauth_provider'] !== '' ? strtolower($edit['oauth_provider']) : (($curProvider === 'microsoft365' || $curProvider === 'outlook') ? 'microsoft' : 'google');
+          if (!in_array($curOAuthProvider, array('google', 'microsoft'), true)) { $curOAuthProvider = 'google'; }
+          $oauthConnected = $edit && !empty($edit['oauth_refresh_token']);        ?>
         <div class="alert alert-info" id="mbxApppwHelp">
           <span class="mbx-apppw-label"><?php echo mbx_h($MBX_PROVIDERS[$curProvider]['apppw_label']); ?></span>
           <a class="mbx-apppw-link" href="<?php echo mbx_h($MBX_PROVIDERS[$curProvider]['apppw_url']); ?>" target="_blank" rel="noopener">앱 비밀번호 발급</a>
@@ -144,12 +206,33 @@ if ($edit && (string)$edit['owner_userid'] !== $myId) {
             <label>메일 제공자</label>
             <select class="form-control" name="provider" id="mbxProvider">
               <?php foreach ($MBX_PROVIDERS as $pkey => $pcfg): ?>
-                <option value="<?php echo mbx_h($pkey); ?>" data-imap-host="<?php echo mbx_h($pcfg['imap_host']); ?>" data-imap-port="<?php echo (int)$pcfg['imap_port']; ?>" data-smtp-host="<?php echo mbx_h($pcfg['smtp_host']); ?>" data-smtp-port="<?php echo (int)$pcfg['smtp_port']; ?>" data-apppw-url="<?php echo mbx_h($pcfg['apppw_url']); ?>" data-apppw-label="<?php echo mbx_h($pcfg['apppw_label']); ?>" <?php echo $pkey === $curProvider ? 'selected' : ''; ?>><?php echo mbx_h($pcfg['label']); ?></option>
+                <option value="<?php echo mbx_h($pkey); ?>" data-imap-host="<?php echo mbx_h($pcfg['imap_host']); ?>" data-imap-port="<?php echo (int)$pcfg['imap_port']; ?>" data-smtp-host="<?php echo mbx_h($pcfg['smtp_host']); ?>" data-smtp-port="<?php echo (int)$pcfg['smtp_port']; ?>" data-apppw-url="<?php echo mbx_h($pcfg['apppw_url']); ?>" data-apppw-label="<?php echo mbx_h($pcfg['apppw_label']); ?>" data-supports-oauth="<?php echo !empty($pcfg['supports_oauth']) ? '1' : '0'; ?>" <?php echo $pkey === $curProvider ? 'selected' : ''; ?>><?php echo mbx_h($pcfg['label']); ?></option>
               <?php endforeach; ?>
             </select>
             <p class="help-block">제공자를 선택하면 아래 IMAP/SMTP 주소가 자동으로 채워집니다.</p>
           </div>
-          <div class="row">
+          <div class="form-group">
+            <label>인증 방식</label>
+            <select class="form-control" name="auth_type" id="mbxAuthType">
+              <option value="password" <?php echo $curAuthType === 'password' ? 'selected' : ''; ?>>앱 비밀번호</option>
+              <option value="oauth2" <?php echo $curAuthType === 'oauth2' ? 'selected' : ''; ?>>OAuth2</option>
+            </select>
+          </div>
+          <div class="form-group mbx-oauth-provider-group">
+            <label>OAuth 제공자</label>
+            <select class="form-control" name="oauth_provider" id="mbxOAuthProvider">
+              <option value="google" <?php echo $curOAuthProvider === 'google' ? 'selected' : ''; ?>>Google</option>
+              <option value="microsoft" <?php echo $curOAuthProvider === 'microsoft' ? 'selected' : ''; ?>>Microsoft</option>
+            </select>
+            <?php if ($edit): ?>
+              <p class="help-block">
+                <?php echo $oauthConnected ? '<span class="label label-success">연결됨</span>' : '<span class="label label-warning">미연결</span>'; ?>
+                <a class="btn btn-default btn-xs" href="<?php echo mbx_h(mbx_plugin_url('api/oauth.php?action=start&account_id=' . (int)$edit['id'] . '&provider=' . urlencode($curOAuthProvider))); ?>">OAuth 계정 연결</a>
+              </p>
+            <?php else: ?>
+              <p class="help-block">먼저 저장한 뒤 OAuth 계정 연결을 진행하세요.</p>
+            <?php endif; ?>
+          </div>          <div class="row">
             <div class="col-xs-8 form-group"><label>IMAP host</label><input class="form-control" name="imap_host" value="<?php echo mbx_h($edit ? $edit['imap_host'] : 'imap.gmail.com'); ?>"></div>
             <div class="col-xs-4 form-group"><label>port</label><input class="form-control" name="imap_port" value="<?php echo mbx_h($edit ? $edit['imap_port'] : '993'); ?>"></div>
           </div>
@@ -157,7 +240,7 @@ if ($edit && (string)$edit['owner_userid'] !== $myId) {
             <div class="col-xs-8 form-group"><label>SMTP host</label><input class="form-control" name="smtp_host" value="<?php echo mbx_h($edit ? $edit['smtp_host'] : 'smtp.gmail.com'); ?>"></div>
             <div class="col-xs-4 form-group"><label>port</label><input class="form-control" name="smtp_port" value="<?php echo mbx_h($edit ? $edit['smtp_port'] : '587'); ?>"></div>
           </div>
-          <div class="form-group"><label>앱 비밀번호<?php echo $edit ? ' (변경 시만 입력)' : ''; ?></label><input class="form-control" type="password" name="app_password" <?php echo $edit ? '' : 'required'; ?>></div>
+          <div class="form-group mbx-app-password-group"><label>앱 비밀번호<?php echo $edit ? ' (변경 시만 입력)' : ''; ?></label><input class="form-control" type="password" name="app_password"></div>
           <div class="checkbox"><label><input type="checkbox" name="is_active" <?php echo (!$edit || (int)$edit['is_active']) ? 'checked' : ''; ?>> 사용</label></div>
           <button type="submit" class="btn btn-primary"><i class="fa fa-save"></i> 저장</button>
           <?php if ($edit): ?><a href="<?php echo mbx_h(mbx_plugin_url('my_account.php')); ?>" class="btn btn-default">취소</a><?php endif; ?>
@@ -173,7 +256,10 @@ $(document).on('click', '.btn-test', function(){
   btn.prop('disabled', true);
   $.post('<?php echo mbx_h(mbx_plugin_url('api/account_test.php')); ?>', {account_id: btn.data('id')}, function(res){
     alert(res.status === 'success' ? '연결 성공' : res.message);
-  }, 'json').fail(function(){ alert('연결 테스트 실패'); }).always(function(){ btn.prop('disabled', false); });
+  }, 'json').fail(function(xhr){
+    var m = (xhr && xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : '연결 테스트 실패';
+    alert(m);
+  }).always(function(){ btn.prop('disabled', false); });
 });
 $(document).on('change', '#mbxProvider', function(){
   var opt = $(this).find('option:selected');
@@ -185,6 +271,12 @@ $(document).on('change', '#mbxProvider', function(){
   $('#mbxApppwHelp .mbx-apppw-label').text(opt.data('apppw-label'));
   $('#mbxApppwHelp .mbx-apppw-link').attr('href', opt.data('apppw-url'));
 });
-</script>
+function mbxAuthToggle(){
+  var auth = $('#mbxAuthType').val() || 'password';
+  $('.mbx-oauth-provider-group').toggle(auth === 'oauth2');
+  $('.mbx-app-password-group').toggle(auth !== 'oauth2');
+}
+$(document).on('change', '#mbxAuthType,#mbxProvider', mbxAuthToggle);
+$(mbxAuthToggle);</script>
 <?php include __DIR__ . '/footer.php'; ?>
 </body></html>

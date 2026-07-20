@@ -34,6 +34,31 @@ final class ImapClient
         $this->command('LOGIN ' . $this->quote($user) . ' ' . $this->quote($pass));
     }
 
+    public function authenticateXOAuth2($user, $accessToken)
+    {
+        if (!$this->fp) {
+            throw new RuntimeException('IMAP socket is not connected.');
+        }
+        $tag = 'A' . str_pad((string)$this->tagNo++, 4, '0', STR_PAD_LEFT);
+        $sasl = base64_encode('user=' . $user . "\x01" . 'auth=Bearer ' . $accessToken . "\x01\x01");
+        fwrite($this->fp, $tag . ' AUTHENTICATE XOAUTH2 ' . $sasl . "\r\n");
+        $lines = array();
+        while (!feof($this->fp)) {
+            $line = $this->readLogicalLine();
+            $lines[] = $line;
+            if (strpos($line, '+') === 0) {
+                fwrite($this->fp, "\r\n");
+                continue;
+            }
+            if (strpos($line, $tag . ' ') === 0) {
+                if (preg_match('/^' . preg_quote($tag, '/') . '\s+OK/i', $line)) {
+                    return;
+                }
+                throw new RuntimeException('IMAP XOAUTH2 authentication failed: ' . trim($line));
+            }
+        }
+        throw new RuntimeException('IMAP XOAUTH2 authentication timed out.');
+    }
     public function listFolders()
     {
         $folders = array();
@@ -119,6 +144,65 @@ final class ImapClient
         }
     }
 
+    public function idleWait($seconds = 55)
+    {
+        if (!$this->fp) {
+            throw new RuntimeException('IMAP socket is not connected.');
+        }
+        $seconds = max(1, (int)$seconds);
+        $tag = 'A' . str_pad((string)$this->tagNo++, 4, '0', STR_PAD_LEFT);
+        fwrite($this->fp, $tag . " IDLE\r\n");
+
+        stream_set_timeout($this->fp, $this->timeout);
+        $line = fgets($this->fp);
+        if ($line === false) {
+            $meta = stream_get_meta_data($this->fp);
+            throw new RuntimeException(!empty($meta['timed_out']) ? 'IMAP IDLE start timeout.' : 'IMAP IDLE start failed.');
+        }
+        if (strpos($line, '+') !== 0) {
+            throw new RuntimeException('IMAP IDLE not accepted: ' . trim($line));
+        }
+
+        $changed = false;
+        $lines = array();
+        $started = time();
+        stream_set_timeout($this->fp, $seconds);
+        while (!feof($this->fp)) {
+            $line = fgets($this->fp);
+            if ($line === false) {
+                $meta = stream_get_meta_data($this->fp);
+                if (!empty($meta['timed_out'])) {
+                    break;
+                }
+                throw new RuntimeException('IMAP IDLE read failed.');
+            }
+            $lines[] = $line;
+            if (preg_match('/^\*\s+\d+\s+(EXISTS|EXPUNGE|RECENT)\b/i', $line) || preg_match('/^\*\s+\d+\s+FETCH\b/i', $line)) {
+                $changed = true;
+                break;
+            }
+            if (preg_match('/^\*\s+BYE\b/i', $line)) {
+                throw new RuntimeException('IMAP server closed IDLE connection: ' . trim($line));
+            }
+            if ((time() - $started) >= $seconds) {
+                break;
+            }
+        }
+
+        fwrite($this->fp, "DONE\r\n");
+        stream_set_timeout($this->fp, $this->timeout);
+        while (!feof($this->fp)) {
+            $line = $this->readLogicalLine();
+            $lines[] = $line;
+            if (strpos($line, $tag . ' ') === 0) {
+                if (preg_match('/^' . preg_quote($tag, '/') . '\s+OK/i', $line)) {
+                    return array('changed' => $changed, 'lines' => $lines);
+                }
+                throw new RuntimeException('IMAP IDLE stop failed: ' . trim($line));
+            }
+        }
+        throw new RuntimeException('IMAP IDLE stop timed out.');
+    }
     public function logout()
     {
         if ($this->fp) {
@@ -219,9 +303,41 @@ final class ImapClient
             if (strlen($name) >= 2 && $name[0] === '"' && substr($name, -1) === '"') {
                 $name = stripcslashes(substr($name, 1, -1));
             }
-            return array('name' => $name, 'attrs' => $attrs, 'raw' => $line);
+            return array('name' => $name, 'display_name' => self::decodeMailboxName($name), 'attrs' => $attrs, 'raw' => $line);
         }
         return null;
+    }
+
+
+    public static function decodeMailboxName($value)
+    {
+        return preg_replace_callback('/&([^-]*)-/', function ($m) {
+            if ($m[1] === '') {
+                return '&';
+            }
+            $b64 = str_replace(',', '/', $m[1]);
+            $pad = strlen($b64) % 4;
+            if ($pad > 0) {
+                $b64 .= str_repeat('=', 4 - $pad);
+            }
+            $bin = base64_decode($b64, true);
+            if ($bin === false) {
+                return $m[0];
+            }
+            if (function_exists('mb_convert_encoding')) {
+                $decoded = @mb_convert_encoding($bin, 'UTF-8', 'UTF-16BE');
+                if ($decoded !== false && $decoded !== '') {
+                    return $decoded;
+                }
+            }
+            if (function_exists('iconv')) {
+                $decoded = @iconv('UTF-16BE', 'UTF-8//IGNORE', $bin);
+                if ($decoded !== false && $decoded !== '') {
+                    return $decoded;
+                }
+            }
+            return $m[0];
+        }, (string)$value);
     }
 
     private function parseFetch(array $lines, $items, $set = '')

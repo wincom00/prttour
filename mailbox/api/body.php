@@ -23,6 +23,17 @@ function mbx_rewrite_body_images($html, array $cidMap)
                 return ' src="' . mbx_h($cidMap[$cid]) . '"';
             }
         }
+        $localKey = mbx_normalize_cid($src);
+        if ($localKey !== '' && isset($cidMap[$localKey])) {
+            return ' src="' . mbx_h($cidMap[$localKey]) . '"';
+        }
+        $baseKey = mbx_normalize_cid(basename(str_replace('\\', '/', $src)));
+        if ($baseKey !== '' && isset($cidMap[$baseKey])) {
+            return ' src="' . mbx_h($cidMap[$baseKey]) . '"';
+        }
+        // 원격 이미지는 원본 URL 로 직접 불러오면 발신 서버의 핫링크 차단(외부 Referer
+        // 거부)·CORS·인증 요구로 자주 깨진다. 서버측 프록시(api/image.php)로 경유시켜
+        // 브라우저 UA 로 실시간으로 받아 같은 출처로 내보낸다(캐시 없음).
         if (strpos($src, '//') === 0) {
             return ' src="' . mbx_h(mbx_image_proxy_url('https:' . $src)) . '"';
         }
@@ -56,11 +67,20 @@ function mbx_image_proxy_url($url)
 function mbx_load_cid_map(mysqli $db, $msgId)
 {
     $cidMap = array();
-    $atts = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT id, content_id FROM mailbox_attachments WHERE msg_id=? AND content_id<>''", 'i', array((int)$msgId)));
+    $atts = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT id, content_id, filename, mime_type FROM mailbox_attachments WHERE msg_id=? AND (content_id<>'' OR filename<>'')", 'i', array((int)$msgId)));
     foreach ($atts as $att) {
-        $cid = mbx_normalize_cid($att['content_id']);
-        if ($cid !== '') {
-            $cidMap[$cid] = mbx_plugin_url('api/attachment.php?id=' . (int)$att['id'] . '&inline=1');
+        $url = mbx_plugin_url('api/attachment.php?id=' . (int)$att['id'] . '&inline=1');
+        $keys = array();
+        $keys[] = isset($att['content_id']) ? $att['content_id'] : '';
+        if (isset($att['filename']) && preg_match('/^image\//i', (string)$att['mime_type'])) {
+            $keys[] = $att['filename'];
+            $keys[] = basename(str_replace('\\', '/', (string)$att['filename']));
+        }
+        foreach ($keys as $key) {
+            $cid = mbx_normalize_cid($key);
+            if ($cid !== '' && !isset($cidMap[$cid])) {
+                $cidMap[$cid] = $url;
+            }
         }
     }
     return $cidMap;
@@ -203,13 +223,45 @@ function mbx_allowed_attr($tagName, $name, $value)
     return false;
 }
 
+function mbx_body_has_renderable_content($html)
+{
+    $html = (string)$html;
+    if (trim($html) === '') {
+        return false;
+    }
+    $plain = trim(strip_tags(html_entity_decode($html, ENT_QUOTES, 'UTF-8')));
+    $plainLen = function_exists('mb_strlen') ? mb_strlen($plain, 'UTF-8') : strlen($plain);
+    if ($plainLen >= 20) {
+        return true;
+    }
+    if (preg_match('/<img\b/i', $html)) {
+        return true;
+    }
+    return $plainLen >= 5 && preg_match('/<(table|tr|td|div|p|span|a|font|center)\b/i', $html);
+}
+
+function mbx_body_looks_preview_only(array $row, $body)
+{
+    if ((int)$row['body_fetched'] !== 1) {
+        return false;
+    }
+    $msgSize = isset($row['msg_size']) ? (int)$row['msg_size'] : 0;
+    if ($msgSize < 12000) {
+        return false;
+    }
+    $plain = trim(strip_tags(html_entity_decode((string)$body, ENT_QUOTES, 'UTF-8')));
+    $plainLen = function_exists('mb_strlen') ? mb_strlen($plain, 'UTF-8') : strlen($plain);
+    $htmlLen = isset($row['body_html']) ? strlen((string)$row['body_html']) : 0;
+    $textLen = isset($row['body_text']) ? strlen((string)$row['body_text']) : 0;
+    return $plainLen > 0 && $plainLen < 300 && max($htmlLen, $textLen) < 2000;
+}
 function mbx_body_from_row(array $row)
 {
     if (isset($row['body_html']) && trim((string)$row['body_html']) !== '') {
         $html = MimeParser::decodeEncodedBlob($row['body_html']);
         // 표시 가능한 HTML 일 때만 사용한다. 깨진/인코딩 깨진 HTML 이면
         // 아래의 텍스트 본문으로 폴백한다(텍스트가 멀쩡한 경우 정상 표시).
-        if ($html !== '' && MimeParser::isDisplayableText($html)) {
+        if ($html !== '' && (MimeParser::isDisplayableText($html) || mbx_body_has_renderable_content($html))) {
             return $html;
         }
     }
@@ -265,15 +317,12 @@ function mbx_body_renderable($body)
     if ($decoded !== $rendered) {
         $rendered = mbx_sanitize_body($decoded);
     }
-    return MimeParser::isDisplayableText($rendered);
+    return MimeParser::isDisplayableText($rendered) || mbx_body_has_renderable_content($rendered);
 }
 
-function mbx_body_open_client(array $account)
+function mbx_body_open_client(mysqli $db, array &$account)
 {
-    $client = new ImapClient($account['imap_host'], (int)$account['imap_port']);
-    $client->connect();
-    $client->login($account['email'], $account['app_password']);
-    return $client;
+    return mbx_imap_connect($db, $account);
 }
 
 function mbx_body_all_mail_folder(ImapClient $client)
@@ -333,6 +382,112 @@ function mbx_body_from_parsed(array $parsed)
     return nl2br(mbx_h($text));
 }
 
+
+function mbx_body_account_is_gmail(array $account)
+{
+    $provider = isset($account['provider']) ? strtolower(trim((string)$account['provider'])) : '';
+    if ($provider !== '') {
+        return $provider === 'gmail';
+    }
+    $host = isset($account['imap_host']) ? strtolower((string)$account['imap_host']) : '';
+    return strpos($host, 'gmail') !== false || strpos($host, 'google') !== false;
+}
+
+function mbx_body_attachment_data_url(array $att)
+{
+    $mime = isset($att['mime_type']) ? strtolower(trim((string)$att['mime_type'])) : '';
+    if (strpos($mime, 'image/') !== 0 || empty($att['raw_body'])) {
+        return '';
+    }
+    $encoding = isset($att['encoding']) ? (string)$att['encoding'] : '';
+    $data = MimeParser::decodeTransferEncoding((string)$att['raw_body'], $encoding);
+    if ($data === '' || strlen($data) > 3145728) {
+        return '';
+    }
+    return 'data:' . $mime . ';base64,' . base64_encode($data);
+}
+
+function mbx_body_runtime_cid_map(array $parsed)
+{
+    $cidMap = array();
+    if (empty($parsed['attachments']) || !is_array($parsed['attachments'])) {
+        return $cidMap;
+    }
+    foreach ($parsed['attachments'] as $att) {
+        $url = mbx_body_attachment_data_url($att);
+        if ($url === '') {
+            continue;
+        }
+        $keys = array();
+        $keys[] = isset($att['content_id']) ? $att['content_id'] : '';
+        $keys[] = isset($att['filename']) ? $att['filename'] : '';
+        if (isset($att['filename'])) {
+            $keys[] = basename(str_replace('\\', '/', (string)$att['filename']));
+        }
+        foreach ($keys as $key) {
+            $cid = mbx_normalize_cid($key);
+            if ($cid !== '' && !isset($cidMap[$cid])) {
+                $cidMap[$cid] = $url;
+            }
+        }
+    }
+    return $cidMap;
+}
+
+function mbx_body_live_fetch(mysqli $db, array $account, array $row, array &$cidMap)
+{
+    global $MBX_FOLDERS;
+    $client = null;
+    try {
+        $client = mbx_body_open_client($db, $account);
+        $resolver = new MailboxSync($db, $account, $MBX_FOLDERS);
+        $folderName = $resolver->resolveFolderName($client, $row['folder_key']);
+        $client->select($folderName);
+        $uid = isset($row['uid']) ? (int)$row['uid'] : 0;
+        $fetched = $uid > 0 ? $client->uidFetch((string)$uid, '(BODY.PEEK[])') : array();
+
+        if (empty($fetched) && trim((string)$row['message_id']) !== '') {
+            $criteria = 'HEADER MESSAGE-ID "' . addcslashes(trim((string)$row['message_id']), '"\\') . '"';
+            $found = $client->uidSearch($criteria);
+            if ($found) {
+                $uid = (int)end($found);
+                $fetched = $client->uidFetch((string)$uid, '(BODY.PEEK[])');
+            }
+        }
+
+        if (empty($fetched) && mbx_body_account_is_gmail($account) && trim((string)$row['message_id']) !== '') {
+            $allMail = mbx_body_all_mail_folder($client);
+            if ($allMail !== '') {
+                $client->select($allMail);
+                $criteria = 'HEADER MESSAGE-ID "' . addcslashes(trim((string)$row['message_id']), '"\\') . '"';
+                $found = $client->uidSearch($criteria);
+                if ($found) {
+                    $uid = (int)end($found);
+                    $fetched = $client->uidFetch((string)$uid, '(BODY.PEEK[])');
+                }
+            }
+        }
+
+        if (empty($fetched)) {
+            throw new RuntimeException('Message body fetch failed.');
+        }
+        $first = reset($fetched);
+        $raw = isset($first['BODY']) ? (string)$first['BODY'] : '';
+        if ($raw === '') {
+            throw new RuntimeException('Message body is empty or unavailable.');
+        }
+        $parsed = MimeParser::parseMessage($raw);
+        $cidMap = mbx_body_runtime_cid_map($parsed);
+        $body = mbx_body_from_parsed($parsed);
+        $client->logout();
+        return $body;
+    } catch (Exception $e) {
+        if ($client) {
+            $client->logout();
+        }
+        throw $e;
+    }
+}
 function mbx_body_source_meta($label, $date, $from, $to)
 {
     $date = trim((string)$date);
@@ -344,14 +499,9 @@ function mbx_body_source_meta($label, $date, $from, $to)
 
 function mbx_body_raw_candidate(ImapClient $client, $uid)
 {
-    $rows = $client->uidFetch((string)(int)$uid, '(BODY.PEEK[HEADER] BODY.PEEK[TEXT]<0.262144>)');
+    $rows = $client->uidFetch((string)(int)$uid, '(BODY.PEEK[])');
     $first = reset($rows);
-    $header = isset($first['HEADER']) ? (string)$first['HEADER'] : '';
-    $body = isset($first['BODY']) ? (string)$first['BODY'] : '';
-    if ($header !== '' || $body !== '') {
-        return $header . "\r\n\r\n" . $body;
-    }
-    return '';
+    return isset($first['BODY']) ? (string)$first['BODY'] : '';
 }
 
 function mbx_body_all_mail_fallback(array $account, array $current, &$syncError)
@@ -364,7 +514,7 @@ function mbx_body_all_mail_fallback(array $account, array $current, &$syncError)
     $client = null;
     $lastSearchError = '';
     try {
-        $client = mbx_body_open_client($account);
+        $client = mbx_body_open_client($db, $account);
         $allMail = mbx_body_all_mail_folder($client);
         if ($allMail !== '') {
             $client->select($allMail);
@@ -458,21 +608,21 @@ function mbx_body_thread_fallback(mysqli $db, array $account, array $current, &$
         if ((int)$candidate['id'] === (int)$current['id']) {
             continue;
         }
-        if ((int)$candidate['body_fetched'] === 0) {
+        $candidateCidMap = mbx_load_cid_map($db, (int)$candidate['id']);
+        $candidateBody = mbx_body_from_row($candidate);
+        if (!mbx_body_renderable($candidateBody)) {
             try {
-                $sync = new MailboxSync($db, $account, $MBX_FOLDERS);
-                $candidate = $sync->fetchBody((int)$candidate['id']);
+                $candidateBody = mbx_body_live_fetch($db, $account, $candidate, $candidateCidMap);
             } catch (Exception $e) {
                 if ($syncError === '') {
                     $syncError = mbx_body_friendly_error($e->getMessage());
                 }
             }
         }
-        $candidateBody = mbx_body_from_row($candidate);
         if (!mbx_body_renderable($candidateBody)) {
             continue;
         }
-        $cidMap = mbx_load_cid_map($db, (int)$candidate['id']);
+        $cidMap = $candidateCidMap;
         $from = $candidate['from_name'] !== '' ? $candidate['from_name'] : $candidate['from_email'];
         $date = mbx_date_label($candidate['mail_date']);
         return '<div class="mbx-thread-source">같은 주제 메일에서 표시 중: ' . mbx_h(trim($date . ' ' . $from)) . '</div>' . $candidateBody;
@@ -508,44 +658,29 @@ try {
         } catch (Exception $e) {
         }
     }
-    $alreadyFetched = false;
-    if ((int)$row['body_fetched'] === 0) {
+    $cidMap = array();
+    try {
+        $body = mbx_body_live_fetch($db, $account, $row, $cidMap);
+    } catch (Exception $e) {
+        // 라이브 fetch 실패 = 저장된 UID/Message-ID 가 서버와 어긋난 상태일 수 있다.
+        // 헤더를 자동 재동기화(제목·날짜·보낸사람 검색 포함)해 어긋난 행을 맞춘 뒤
+        // 다시 시도한다. resyncMessage 가 본문까지 DB 에 받아 두므로 행에서 읽는다.
         try {
             $sync = new MailboxSync($db, $account, $MBX_FOLDERS);
-            $row = $sync->fetchBody($id);
-        } catch (Exception $e) {
-            $syncError = mbx_body_friendly_error($e->getMessage());
-        }
-        $alreadyFetched = true;
-    }
-    $body = mbx_body_from_row($row);
-    $cidMap = mbx_load_cid_map($db, (int)$row['id']);
-    if ($syncError === '' && !$cidMap && stripos($body, 'cid:') !== false) {
-        try {
-            $sync = new MailboxSync($db, $account, $MBX_FOLDERS);
-            $row = $sync->fetchBody($id);
+            $newId = $sync->resyncMessage((int)$row['id']);
+            $freshRow = mbx_fetch_one_stmt(mbx_stmt($db, "SELECT * FROM mailbox_messages WHERE id=? AND account_id=?", 'ii', array($newId, (int)$account['id'])));
+            if ($freshRow) {
+                $row = $freshRow;
+            }
             $body = mbx_body_from_row($row);
             $cidMap = mbx_load_cid_map($db, (int)$row['id']);
-            $alreadyFetched = true;
-        } catch (Exception $e) {
+            if (!mbx_body_renderable($body)) {
+                $body = mbx_body_live_fetch($db, $account, $row, $cidMap);
+            }
+        } catch (Exception $e2) {
             $syncError = mbx_body_friendly_error($e->getMessage());
-        }
-    }
-    // DB 에 표시 가능한 본문이 없으면(이전 동기화가 헤더만 받았거나 빈 본문을 저장한 경우 포함),
-    // 스레드/전체보관함 폴백으로 넘어가기 전에 서버에서 "이 메일만" 강제로 다시 받아온다.
-    if (!mbx_body_renderable($body) && !$alreadyFetched) {
-        try {
-            $sync = new MailboxSync($db, $account, $MBX_FOLDERS);
-            $refetched = $sync->fetchBody($id);
-            if ($refetched) {
-                $row = $refetched;
-                $body = mbx_body_from_row($row);
-                $cidMap = mbx_load_cid_map($db, (int)$row['id']);
-            }
-        } catch (Exception $e) {
-            if ($syncError === '') {
-                $syncError = mbx_body_friendly_error($e->getMessage());
-            }
+            $body = mbx_body_from_row($row);
+            $cidMap = mbx_load_cid_map($db, (int)$row['id']);
         }
     }
     if (!mbx_body_renderable($body)) {
@@ -571,7 +706,7 @@ try {
         if ($decodedRenderedBody !== $renderedBody) {
             $renderedBody = mbx_sanitize_body($decodedRenderedBody);
         }
-        if (MimeParser::isDisplayableText($renderedBody)) {
+        if (MimeParser::isDisplayableText($renderedBody) || mbx_body_has_renderable_content($renderedBody)) {
             echo $renderedBody;
         } elseif ($syncError === '') {
             echo '<div class="mbx-sync-warning">표시할 본문이 없습니다. 첨부 파일만 있는 메일이거나, 같은 주제의 다른 메일을 선택해 주세요.</div>';

@@ -59,6 +59,10 @@ final class MailboxSync
 
     public static function ensureTables(mysqli $db)
     {
+        static $done = false;
+        if ($done) {
+            return;
+        }
         $sqls = array(
             "CREATE TABLE IF NOT EXISTS mailbox_accounts (
               id INT AUTO_INCREMENT PRIMARY KEY,
@@ -68,8 +72,14 @@ final class MailboxSync
               imap_port INT NOT NULL DEFAULT 993,
               smtp_host VARCHAR(100) NOT NULL DEFAULT 'smtp.gmail.com',
               smtp_port INT NOT NULL DEFAULT 587,
-              app_password VARCHAR(255) NOT NULL,
+              app_password VARCHAR(255) NULL,
               provider VARCHAR(20) NOT NULL DEFAULT 'gmail',
+              auth_type VARCHAR(20) NOT NULL DEFAULT 'password',
+              oauth_provider VARCHAR(20) NOT NULL DEFAULT '',
+              oauth_refresh_token TEXT NULL,
+              oauth_access_token TEXT NULL,
+              oauth_token_expires INT NULL,
+              folders_synced_at DATETIME NULL,
               is_active TINYINT(1) NOT NULL DEFAULT 1,
               sort_order INT NOT NULL DEFAULT 0,
               owner_userid VARCHAR(100) NOT NULL DEFAULT '',
@@ -81,11 +91,25 @@ final class MailboxSync
               added_by VARCHAR(100) NOT NULL DEFAULT '',
               created_at DATETIME NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+            // 공통 계정을 특정 사용자들에게만 노출하기 위한 다대다 소유자 목록.
+            // 공통(is_common=1) 계정에 이 목록이 있으면 그 사용자에게만 보이고, 비어 있으면 전체 공개(레거시).
+            "CREATE TABLE IF NOT EXISTS mailbox_account_owners (
+              account_id INT NOT NULL,
+              userid VARCHAR(100) NOT NULL,
+              created_at DATETIME NULL,
+              PRIMARY KEY (account_id, userid),
+              KEY idx_userid (userid)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
             "CREATE TABLE IF NOT EXISTS mailbox_folders (
               id INT AUTO_INCREMENT PRIMARY KEY,
               account_id INT NOT NULL,
-              folder_key VARCHAR(20) NOT NULL,
-              imap_name VARCHAR(100) NOT NULL,
+              folder_key VARCHAR(64) NOT NULL,
+              imap_name VARCHAR(255) NOT NULL,
+              display_name VARCHAR(255) NOT NULL DEFAULT '',
+              attrs VARCHAR(255) NOT NULL DEFAULT '',
+              is_selectable TINYINT(1) NOT NULL DEFAULT 1,
+              is_visible TINYINT(1) NOT NULL DEFAULT 1,
+              sort_order INT NOT NULL DEFAULT 0,
               uidvalidity BIGINT UNSIGNED NOT NULL DEFAULT 0,
               last_uid BIGINT UNSIGNED NOT NULL DEFAULT 0,
               last_sync DATETIME NULL,
@@ -94,7 +118,7 @@ final class MailboxSync
             "CREATE TABLE IF NOT EXISTS mailbox_messages (
               id INT AUTO_INCREMENT PRIMARY KEY,
               account_id INT NOT NULL,
-              folder_key VARCHAR(20) NOT NULL,
+              folder_key VARCHAR(64) NOT NULL,
               uid BIGINT UNSIGNED NOT NULL,
               thread_id VARCHAR(40) NOT NULL DEFAULT '',
               message_id VARCHAR(255) NOT NULL DEFAULT '',
@@ -147,7 +171,18 @@ final class MailboxSync
             array('mailbox_accounts', 'owner_userid', "ALTER TABLE mailbox_accounts ADD COLUMN owner_userid VARCHAR(100) NOT NULL DEFAULT ''"),
             array('mailbox_accounts', 'is_common', "ALTER TABLE mailbox_accounts ADD COLUMN is_common TINYINT(1) NOT NULL DEFAULT 0"),
             array('mailbox_accounts', 'provider', "ALTER TABLE mailbox_accounts ADD COLUMN provider VARCHAR(20) NOT NULL DEFAULT 'gmail' AFTER app_password"),
+            array('mailbox_accounts', 'auth_type', "ALTER TABLE mailbox_accounts ADD COLUMN auth_type VARCHAR(20) NOT NULL DEFAULT 'password' AFTER provider"),
+            array('mailbox_accounts', 'oauth_provider', "ALTER TABLE mailbox_accounts ADD COLUMN oauth_provider VARCHAR(20) NOT NULL DEFAULT '' AFTER auth_type"),
+            array('mailbox_accounts', 'oauth_refresh_token', "ALTER TABLE mailbox_accounts ADD COLUMN oauth_refresh_token TEXT NULL AFTER oauth_provider"),
+            array('mailbox_accounts', 'oauth_access_token', "ALTER TABLE mailbox_accounts ADD COLUMN oauth_access_token TEXT NULL AFTER oauth_refresh_token"),
+            array('mailbox_accounts', 'oauth_token_expires', "ALTER TABLE mailbox_accounts ADD COLUMN oauth_token_expires INT NULL AFTER oauth_access_token"),
+            array('mailbox_accounts', 'folders_synced_at', "ALTER TABLE mailbox_accounts ADD COLUMN folders_synced_at DATETIME NULL AFTER oauth_token_expires"),
             array('mailbox_messages', 'thread_id', "ALTER TABLE mailbox_messages ADD COLUMN thread_id VARCHAR(40) NOT NULL DEFAULT '' AFTER uid"),
+            array('mailbox_folders', 'display_name', "ALTER TABLE mailbox_folders ADD COLUMN display_name VARCHAR(255) NOT NULL DEFAULT '' AFTER imap_name"),
+            array('mailbox_folders', 'attrs', "ALTER TABLE mailbox_folders ADD COLUMN attrs VARCHAR(255) NOT NULL DEFAULT '' AFTER display_name"),
+            array('mailbox_folders', 'is_selectable', "ALTER TABLE mailbox_folders ADD COLUMN is_selectable TINYINT(1) NOT NULL DEFAULT 1 AFTER attrs"),
+            array('mailbox_folders', 'is_visible', "ALTER TABLE mailbox_folders ADD COLUMN is_visible TINYINT(1) NOT NULL DEFAULT 1 AFTER is_selectable"),
+            array('mailbox_folders', 'sort_order', "ALTER TABLE mailbox_folders ADD COLUMN sort_order INT NOT NULL DEFAULT 0 AFTER is_visible"),
         );
         foreach ($addCols as $addCol) {
             $table = $addCol[0];
@@ -158,27 +193,227 @@ final class MailboxSync
                 mysqli_query($db, $alter);
             }
         }
-        $idx = mysqli_query($db, "SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='mailbox_messages' AND INDEX_NAME='idx_thread' LIMIT 1");
-        if ($idx && mysqli_num_rows($idx) === 0) {
-            mysqli_query($db, "ALTER TABLE mailbox_messages ADD KEY idx_thread (account_id, thread_id)");
+
+        $appPasswordCol = mysqli_query($db, "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='mailbox_accounts' AND COLUMN_NAME='app_password' LIMIT 1");
+        if ($appPasswordCol && ($r = mysqli_fetch_assoc($appPasswordCol)) && strtoupper((string)$r['IS_NULLABLE']) === 'NO') {
+            mysqli_query($db, "ALTER TABLE mailbox_accounts MODIFY app_password VARCHAR(255) NULL");
+        }        $addIndexes = array(
+            array('mailbox_messages', 'idx_thread', "ALTER TABLE mailbox_messages ADD KEY idx_thread (account_id, thread_id)"),
+            array('mailbox_messages', 'idx_list_page', "ALTER TABLE mailbox_messages ADD KEY idx_list_page (account_id, folder_key, mail_date, uid)"),
+            array('mailbox_messages', 'idx_preview', "ALTER TABLE mailbox_messages ADD KEY idx_preview (account_id, folder_key, body_fetched, uid)"),
+            array('mailbox_messages', 'idx_message_id', "ALTER TABLE mailbox_messages ADD KEY idx_message_id (account_id, message_id)"),
+            array('mailbox_attachments', 'idx_msg_cid', "ALTER TABLE mailbox_attachments ADD KEY idx_msg_cid (msg_id, content_id)"),
+            array('mailbox_folders', 'idx_account_visible', "ALTER TABLE mailbox_folders ADD KEY idx_account_visible (account_id, is_selectable, is_visible, sort_order, id)"),
+        );
+        foreach ($addIndexes as $addIndex) {
+            $table = $addIndex[0];
+            $idxName = $addIndex[1];
+            $alter = $addIndex[2];
+            $idx = mysqli_query($db, "SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='" . mysqli_real_escape_string($db, $table) . "' AND INDEX_NAME='" . mysqli_real_escape_string($db, $idxName) . "' LIMIT 1");
+            if ($idx && mysqli_num_rows($idx) === 0) {
+                mysqli_query($db, $alter);
+            }
         }
 
+
+        $lenChecks = array(
+            array('mailbox_folders', 'folder_key', 64, "ALTER TABLE mailbox_folders MODIFY folder_key VARCHAR(64) NOT NULL"),
+            array('mailbox_folders', 'imap_name', 255, "ALTER TABLE mailbox_folders MODIFY imap_name VARCHAR(255) NOT NULL"),
+            array('mailbox_messages', 'folder_key', 64, "ALTER TABLE mailbox_messages MODIFY folder_key VARCHAR(64) NOT NULL"),
+        );
+        foreach ($lenChecks as $lenCheck) {
+            $table = $lenCheck[0];
+            $col = $lenCheck[1];
+            $minLen = (int)$lenCheck[2];
+            $alter = $lenCheck[3];
+            $chk = mysqli_query($db, "SELECT CHARACTER_MAXIMUM_LENGTH AS len FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='" . mysqli_real_escape_string($db, $table) . "' AND COLUMN_NAME='" . mysqli_real_escape_string($db, $col) . "' LIMIT 1");
+            if ($chk && ($r = mysqli_fetch_assoc($chk)) && (int)$r['len'] < $minLen) {
+                mysqli_query($db, $alter);
+            }
+        }
         // MySQL 8.0 기본 collation(utf8mb4_0900_ai_ci)은 레거시 utf8mb3 연결과 파라미터 변환이 불가능해
         // ("Conversion from collation utf8mb3_general_ci into utf8mb4_0900_ai_ci impossible") INSERT가 모두 실패한다.
         // utf8mb3와 호환되는 utf8mb4_general_ci로 정렬하여 동기화가 정상 동작하도록 한다 (idempotent).
-        $mbxTables = array('mailbox_accounts', 'mailbox_admins', 'mailbox_folders', 'mailbox_messages', 'mailbox_attachments');
+        $mbxTables = array('mailbox_accounts', 'mailbox_admins', 'mailbox_account_owners', 'mailbox_folders', 'mailbox_messages', 'mailbox_attachments');
         foreach ($mbxTables as $table) {
             $chk = mysqli_query($db, "SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='" . mysqli_real_escape_string($db, $table) . "' LIMIT 1");
             if ($chk && ($r = mysqli_fetch_assoc($chk)) && $r['TABLE_COLLATION'] !== 'utf8mb4_general_ci') {
                 mysqli_query($db, "ALTER TABLE " . $table . " CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
             }
         }
+        $done = true;
     }
 
+    public function syncFolderList($force = false)
+    {
+        if (!$force && !$this->folderListSyncDue()) {
+            return;
+        }
+        $client = $this->openClient();
+        try {
+            $folders = $client->listFolderDetails();
+            $this->saveFolderList($folders);
+            $this->markFolderListSynced();
+            $client->logout();
+        } catch (Exception $e) {
+            if ($client) {
+                $client->logout();
+            }
+            throw $e;
+        }
+    }
+
+
+    private function folderListSyncDue()
+    {
+        $row = $this->fetchOne($this->stmt(
+            "SELECT a.folders_synced_at, COUNT(f.id) AS folder_count FROM mailbox_accounts a LEFT JOIN mailbox_folders f ON f.account_id=a.id WHERE a.id=? GROUP BY a.id, a.folders_synced_at LIMIT 1",
+            'i',
+            array((int)$this->account['id'])
+        ));
+        if (!$row || (int)$row['folder_count'] < 1 || empty($row['folders_synced_at'])) {
+            return true;
+        }
+        $ts = strtotime((string)$row['folders_synced_at']);
+        if (!$ts) {
+            return true;
+        }
+        return (time() - $ts) >= 300;
+    }
+
+    private function markFolderListSynced()
+    {
+        $stmt = $this->stmt("UPDATE mailbox_accounts SET folders_synced_at=NOW() WHERE id=?", 'i', array((int)$this->account['id']));
+        mysqli_stmt_close($stmt);
+    }
+
+    public function storedFolderMap($visibleOnly = true)
+    {
+        $sql = "SELECT folder_key, imap_name FROM mailbox_folders WHERE account_id=? AND is_selectable=1";
+        if ($visibleOnly) {
+            $sql .= " AND is_visible=1";
+        }
+        $sql .= " ORDER BY sort_order ASC, id ASC";
+        $rows = $this->fetchAll($this->stmt($sql, 'i', array((int)$this->account['id'])));
+        $map = array();
+        foreach ($rows as $row) {
+            $map[(string)$row['folder_key']] = (string)$row['imap_name'];
+        }
+        return $map;
+    }
+
+    private function syncableFolderMap()
+    {
+        $stored = $this->storedFolderMap(true);
+        return $stored ? $stored : $this->folderMap;
+    }
+
+    private function saveFolderList(array $folders)
+    {
+        $seen = array();
+        $spamKeys = array();
+        $order = 0;
+        foreach ($folders as $folder) {
+            $name = isset($folder['name']) ? (string)$folder['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+            $attrs = isset($folder['attrs']) && is_array($folder['attrs']) ? $folder['attrs'] : array();
+            $displayName = self::folderDisplayName(isset($folder['display_name']) ? $folder['display_name'] : $name);
+            $folderKey = self::folderKeyFromListRow($name, $attrs);
+            if (self::isSpamFolder($name . "
+" . $displayName, $attrs)) {
+                $spamKeys[$folderKey] = $folderKey;
+                continue;
+            }
+            $isSelectable = self::hasFolderAttr($attrs, '\Noselect') ? 0 : 1;
+            $isVisible = $isSelectable ? 1 : 0;
+            $attrText = implode(' ', $attrs);
+            $stmt = $this->stmt(
+                "INSERT INTO mailbox_folders (account_id, folder_key, imap_name, display_name, attrs, is_selectable, is_visible, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?) " .
+                "ON DUPLICATE KEY UPDATE imap_name=VALUES(imap_name), display_name=VALUES(display_name), attrs=VALUES(attrs), is_selectable=VALUES(is_selectable), sort_order=VALUES(sort_order)",
+                'issssiii',
+                array((int)$this->account['id'], $folderKey, $name, $displayName, $attrText, $isSelectable, $isVisible, $order)
+            );
+            mysqli_stmt_close($stmt);
+            $seen[$folderKey] = $folderKey;
+            $order++;
+        }
+        if ($spamKeys) {
+            $keys = array_values($spamKeys);
+            $ph = implode(',', array_fill(0, count($keys), '?'));
+            $stmt = $this->stmt("UPDATE mailbox_folders SET is_selectable=0, is_visible=0 WHERE account_id=? AND folder_key IN (" . $ph . ")", 'i' . str_repeat('s', count($keys)), array_merge(array((int)$this->account['id']), $keys));
+            mysqli_stmt_close($stmt);
+        }
+        if ($seen) {
+            $keys = array_values($seen);
+            $ph = implode(',', array_fill(0, count($keys), '?'));
+            $stmt = $this->stmt("UPDATE mailbox_folders SET is_selectable=0, is_visible=0 WHERE account_id=? AND folder_key NOT IN (" . $ph . ")", 'i' . str_repeat('s', count($keys)), array_merge(array((int)$this->account['id']), $keys));
+            mysqli_stmt_close($stmt);
+        }
+    }
+
+    private function storedFolder($folderKey)
+    {
+        return $this->fetchOne($this->stmt("SELECT * FROM mailbox_folders WHERE account_id=? AND folder_key=? LIMIT 1", 'is', array((int)$this->account['id'], (string)$folderKey)));
+    }
+
+    private static function folderKeyFromListRow($name, array $attrs)
+    {
+        if (strcasecmp((string)$name, 'INBOX') === 0 || self::hasFolderAttr($attrs, '\Inbox')) { return 'inbox'; }
+        if (self::hasFolderAttr($attrs, '\Sent')) { return 'sent'; }
+        if (self::hasFolderAttr($attrs, '\Trash')) { return 'trash'; }
+        if (self::hasFolderAttr($attrs, '\Drafts')) { return 'drafts'; }
+        if (self::hasFolderAttr($attrs, '\All')) { return 'all'; }
+        if (self::hasFolderAttr($attrs, '\Flagged')) { return 'starred'; }
+        if (self::hasFolderAttr($attrs, '\Important')) { return 'important'; }
+        return 'imap_' . substr(sha1((string)$name), 0, 16);
+    }
+
+    private static function hasFolderAttr(array $attrs, $wanted)
+    {
+        foreach ($attrs as $attr) {
+            if (strcasecmp((string)$attr, (string)$wanted) === 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function isSpamFolder($name, array $attrs)
+    {
+        if (self::hasFolderAttr($attrs, '\Junk') || self::hasFolderAttr($attrs, '\Spam')) {
+            return true;
+        }
+        $lower = function_exists('mb_strtolower') ? mb_strtolower((string)$name, 'UTF-8') : strtolower((string)$name);
+        $spamKo = json_decode('"\\uc2a4\\ud338"', true);
+        foreach (array('/spam', 'spam', '/junk', 'junk') as $check) {
+            if (strpos($lower, $check) !== false) {
+                return true;
+            }
+        }
+        return $spamKo !== null && strpos($lower, $spamKo) !== false;
+    }
+
+    private static function folderDisplayName($name)
+    {
+        $name = ImapClient::decodeMailboxName((string)$name);
+        $name = str_replace('\\', '/', $name);
+        $lower = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+        foreach (array('[gmail]/', '[google mail]/') as $prefix) {
+            if (strpos($lower, $prefix) === 0) {
+                $name = substr($name, strlen($prefix));
+                break;
+            }
+        }
+        return trim($name) !== '' ? trim($name) : 'INBOX';
+    }
     public function syncAll()
     {
+        $this->syncFolderList();
+        $folders = $this->syncableFolderMap();
         $out = array('new' => array(), 'errors' => array());
-        foreach ($this->folderMap as $key => $name) {
+        foreach ($folders as $key => $name) {
             try {
                 $out['new'][$key] = $this->syncFolder($key);
             } catch (Throwable $e) {
@@ -192,7 +427,12 @@ final class MailboxSync
     public function syncFolder($folderKey)
     {
         if (!isset($this->folderMap[$folderKey])) {
-            throw new RuntimeException('Unknown folder.');
+            $stored = $this->storedFolder($folderKey);
+            if ($stored && (int)$stored['is_selectable'] === 1) {
+                $this->folderMap[$folderKey] = $stored['imap_name'];
+            } else {
+                throw new RuntimeException('Unknown folder.');
+            }
         }
         @set_time_limit(5000);
         $lockName = 'mbx_sync_' . (int)$this->account['id'];
@@ -364,6 +604,90 @@ final class MailboxSync
         }
     }
 
+    // 저장된 message_id 가 서버 헤더와 어긋나 본문 복구가 계속 실패하는 행을
+    // 개별적으로 다시 맞춘다. UID → Message-ID → 제목/날짜/보낸사람 순으로 서버에서
+    // 현재 UID 를 찾아 헤더를 재수집하고, UID 가 바뀌었으면 낡은 행을 정리한 뒤
+    // 본문도 즉시 다시 받는다. 반환값은 갱신된 행의 id (UID 변경 시 새 행 id).
+    public function resyncMessage($messageRowId)
+    {
+        $row = $this->getMessage((int)$messageRowId);
+        if (!$row) {
+            throw new RuntimeException('Message not found.');
+        }
+        $folderKey = (string)$row['folder_key'];
+        $uid = 0;
+        $client = $this->openClient();
+        try {
+            $folderName = $this->resolveFolderName($client, $folderKey);
+            $folder = $this->ensureFolder($folderKey, $folderName);
+            $client->select($folder['imap_name']);
+
+            $uid = $this->resolveCurrentUid($client, $row);
+            if ($uid <= 0) {
+                $uid = $this->searchUidBySubjectDate($client, $row);
+            }
+            if ($uid <= 0) {
+                throw new RuntimeException('서버에서 이 메일을 찾지 못했습니다. (UID/Message-ID/제목·날짜 검색 모두 실패)');
+            }
+
+            $items = '(FLAGS ' . $this->gmailThreadItem() . 'RFC822.SIZE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID IN-REPLY-TO)] BODY.PEEK[TEXT]<0.4096>)';
+            $fetched = $client->uidFetch((string)$uid, $items);
+            if (empty($fetched)) {
+                throw new RuntimeException('메일 헤더를 다시 가져오지 못했습니다.');
+            }
+            foreach ($fetched as $fetchedUid => $fetch) {
+                $this->saveHeaderRow($folderKey, (int)$fetchedUid, $fetch);
+            }
+            $client->logout();
+        } catch (Exception $e) {
+            $client->logout();
+            throw $e;
+        }
+
+        $fresh = $this->fetchOne($this->stmt("SELECT id FROM mailbox_messages WHERE account_id=? AND folder_key=? AND uid=?", 'isi', array((int)$this->account['id'], $folderKey, $uid)));
+        $newId = $fresh ? (int)$fresh['id'] : (int)$row['id'];
+        if ($newId !== (int)$row['id']) {
+            // 예전 UID 로 남아 있던 행은 같은 메일의 낡은 중복이므로 제거한다.
+            $this->deleteLocalMessages(array((int)$row['id']));
+        }
+        try {
+            $this->fetchBody($newId);
+        } catch (Exception $e) {
+            // 헤더 교정이 목적이므로 본문 수신 실패는 치명적이지 않다.
+            // 본문은 열람 시 body.php 의 라이브 fetch 가 다시 시도한다.
+        }
+        return $newId;
+    }
+
+    // message_id 까지 어긋난 행을 제목+보낸날짜(SENTON)+보낸사람으로 서버에서 찾는다.
+    // IMAP SEARCH 기본 문자셋이 US-ASCII 라 비ASCII 값은 조건에서 제외하고,
+    // 오탐을 막기 위해 조건이 2개 이상 모일 때만 검색한다.
+    private function searchUidBySubjectDate(ImapClient $client, array $row)
+    {
+        $criteria = array();
+        $ts = isset($row['mail_date']) ? strtotime((string)$row['mail_date']) : false;
+        if ($ts) {
+            $criteria[] = 'SENTON ' . date('j-M-Y', $ts);
+        }
+        $fromEmail = isset($row['from_email']) ? trim((string)$row['from_email']) : '';
+        if ($fromEmail !== '' && preg_match('/^[\x20-\x7e]+$/', $fromEmail)) {
+            $criteria[] = 'FROM "' . addcslashes($fromEmail, '"\\') . '"';
+        }
+        $subject = isset($row['subject']) ? trim((string)$row['subject']) : '';
+        if ($subject !== '' && preg_match('/^[\x20-\x7e]+$/', $subject)) {
+            $criteria[] = 'SUBJECT "' . addcslashes($subject, '"\\') . '"';
+        }
+        if (count($criteria) < 2) {
+            return 0;
+        }
+        try {
+            $found = $client->uidSearch(implode(' ', $criteria));
+        } catch (Exception $e) {
+            return 0;
+        }
+        return $found ? (int)end($found) : 0;
+    }
+
     public function refreshThreadId($messageRowId)
     {
         $row = $this->getMessage((int)$messageRowId);
@@ -497,7 +821,7 @@ final class MailboxSync
         $rows = $this->getMessagesByIds($ids);
         $groups = $this->groupRows($rows);
         foreach ($groups as $folderKey => $uids) {
-            if (!isset($this->folderMap[$folderKey])) {
+            if (!isset($this->folderMap[$folderKey]) && !$this->storedFolder($folderKey)) {
                 continue;
             }
             $client = $this->openClient();
@@ -523,9 +847,13 @@ final class MailboxSync
 
     public function resolveFolderName(ImapClient $client, $folderKey)
     {
-        $configured = isset($this->folderMap[$folderKey]) ? $this->folderMap[$folderKey] : 'INBOX';
+        $stored = $this->storedFolder($folderKey);
+        $configured = $stored ? $stored['imap_name'] : (isset($this->folderMap[$folderKey]) ? $this->folderMap[$folderKey] : 'INBOX');
         if ($folderKey === 'inbox') {
             return 'INBOX';
+        }
+        if ($stored && $folderKey !== 'sent' && $folderKey !== 'trash') {
+            return $stored['imap_name'];
         }
         $folders = $client->listFolderDetails();
         $wantedAttr = '';
@@ -630,10 +958,7 @@ final class MailboxSync
 
     private function openClient()
     {
-        $client = new ImapClient($this->account['imap_host'], (int)$this->account['imap_port']);
-        $client->connect();
-        $client->login($this->account['email'], $this->account['app_password']);
-        return $client;
+        return mbx_imap_connect($this->db, $this->account);
     }
 
     private function saveHeaderRow($folderKey, $uid, array $fetch)

@@ -16,7 +16,7 @@
 	
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -286,7 +286,7 @@
 									    <?php if ($user_dbinfo['division'] != "guide") { ?>
 										<a  href="input_batch.php" data-placement="bottom" target='_blank' data-container="body" class="label bs_ttip" title="스마트등록">스마트등록&nbsp;<i class="splashy-image_modernist"></i></a>
                                         <a  href="memo_list.php" data-placement="bottom" target='_blank' data-container="body" class="label bs_ttip" title="메모등록">메모등록&nbsp;<i class="splashy-group_blue_edit"></i></a>
-                                        <a  href="/admin/total_reservation.php" data-placement="bottom" data-container="body" class="label bs_ttip" title="예약검색">통합예약검색&nbsp;<i class="splashy-group_blue_edit"></i></a>
+                                        <a  href="total_reservation.php" data-placement="bottom" data-container="body" class="label bs_ttip" title="예약검색">통합예약검색&nbsp;<i class="splashy-group_blue_edit"></i></a>
 										<a  href="sc_local.php" data-placement="bottom" data-container="body" class="label bs_ttip" title="New tasks">전체스케줄표 <i class="splashy-image_modernist"></i></a>
 										<a  data-backdrop="static" href="sc_out.php" data-placement="bottom" data-container="body" class="label bs_ttip" title="New tasks">아웃바운드스케줄표 <i class="splashy-image_modernist"></i></a>
 										<?php } else{ ?>

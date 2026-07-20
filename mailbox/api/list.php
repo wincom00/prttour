@@ -77,7 +77,12 @@ try {
         mbx_json(array('status' => 'error', 'message' => 'No mailbox account.'), 400);
     }
 
-    $folder = isset($_GET['folder']) && in_array($_GET['folder'], array('inbox', 'sent', 'trash'), true) ? $_GET['folder'] : 'inbox';
+    $folderRows = mbx_account_folders($db, (int)$account['id'], true);
+    $defaultFolder = isset($folderRows[0]['folder_key']) ? (string)$folderRows[0]['folder_key'] : 'inbox';
+    $folder = isset($_GET['folder']) ? (string)$_GET['folder'] : $defaultFolder;
+    if (!mbx_folder_allowed($db, $account, $folder, true)) {
+        $folder = $defaultFolder;
+    }
     $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
     $limit = 20;
     $offset = ($page - 1) * $limit;
@@ -95,12 +100,11 @@ try {
         $params[] = $like;
         $params[] = $like;
     }
-
-    $allRows = mbx_fetch_all_stmt(mbx_stmt($db, 'SELECT * FROM mailbox_messages WHERE ' . $where . ' ORDER BY mail_date DESC, uid DESC', $types, $params));
-    $threadRows = mbx_api_group_list_threads($allRows);
-    $totalRows = count($threadRows);
+    $countRow = mbx_fetch_one_stmt(mbx_stmt($db, 'SELECT COUNT(*) AS c FROM mailbox_messages WHERE ' . $where, $types, $params));
+    $totalRows = isset($countRow['c']) ? (int)$countRow['c'] : 0;
     $totalPages = max(1, (int)ceil($totalRows / $limit));
-    $rows = array_slice($threadRows, $offset, $limit);
+    $rows = mbx_fetch_all_stmt(mbx_stmt($db, 'SELECT * FROM mailbox_messages WHERE ' . $where . ' ORDER BY mail_date DESC, uid DESC LIMIT ' . (int)$offset . ', ' . (int)$limit, $types, $params));
+    $rows = mbx_api_group_list_threads($rows);
 
     $html = '';
     $ids = array();

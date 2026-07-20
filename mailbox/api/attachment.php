@@ -71,6 +71,13 @@ function mbx_is_image_binary($data)
     return false;
 }
 
+// Content-ID 를 비교용으로 정규화한다(꺾쇠·공백 제거, 소문자). 인라인 이미지는
+// 파일명 없이 Content-ID(cid:)로만 식별되는 경우가 많아 이 키가 결정적이다.
+function mbx_normalize_att_cid($cid)
+{
+    return strtolower(trim(trim((string)$cid), '<> '));
+}
+
 function mbx_find_attachment_in_raw_message($raw, array $att)
 {
     if ((string)$raw === '') {
@@ -82,9 +89,19 @@ function mbx_find_attachment_in_raw_message($raw, array $att)
     }
     $wantedPart = (string)$att['part_no'];
     $wantedName = (string)$att['filename'];
+    $wantedCid = mbx_normalize_att_cid(isset($att['content_id']) ? $att['content_id'] : '');
     foreach ($parsed['attachments'] as $candidate) {
         if ($wantedPart !== '' && isset($candidate['part_no']) && (string)$candidate['part_no'] === $wantedPart) {
             return $candidate;
+        }
+    }
+    // 인라인 이미지는 파일명이 없고 Content-ID 로만 식별되는 경우가 많다. part_no
+    // 번호가 서버와 어긋나 못 찾았으면 Content-ID 로 다시 매칭한다(이미지 깨짐의 주원인).
+    if ($wantedCid !== '') {
+        foreach ($parsed['attachments'] as $candidate) {
+            if (isset($candidate['content_id']) && mbx_normalize_att_cid($candidate['content_id']) === $wantedCid) {
+                return $candidate;
+            }
         }
     }
     foreach ($parsed['attachments'] as $candidate) {
@@ -108,9 +125,7 @@ try {
         throw new RuntimeException('첨부 파일을 찾을 수 없습니다.');
     }
     global $MBX_FOLDERS;
-    $client = new ImapClient($account['imap_host'], (int)$account['imap_port']);
-    $client->connect();
-    $client->login($account['email'], $account['app_password']);
+    $client = mbx_imap_connect($db, $account);
     $resolver = new MailboxSync($db, $account, $MBX_FOLDERS);
     $folderName = $resolver->resolveFolderName($client, $att['folder_key']);
     $client->select($folderName);

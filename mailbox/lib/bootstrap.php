@@ -15,6 +15,21 @@ if (!defined('MBX_BOOTSTRAP_LOADED')) {
         }
 
         $pluginDir = mbx_plugin_dir();
+
+        // 설치 화면에서 지정한 ERP admin 디렉터리(MBX_ADMIN_DIR)를 최우선으로 쓴다.
+        // bootstrap 은 config.php 보다 먼저 로드되므로 여기서 조기 로드한다(상수 정의만 있어 안전).
+        $configPath = $pluginDir . '/config.php';
+        if (!defined('MBX_ADMIN_DIR') && file_exists($configPath)) {
+            require_once $configPath;
+        }
+        if (defined('MBX_ADMIN_DIR') && trim((string)MBX_ADMIN_DIR) !== '') {
+            $configured = rtrim(str_replace('\\', '/', trim((string)MBX_ADMIN_DIR)), '/');
+            if (file_exists($configured . '/include/inc_base.php') && file_exists($configured . '/include/header.php')) {
+                return $adminDir = $configured;
+            }
+            // 지정 경로가 잘못되면 자동 탐지로 폴백한다(설치 화면 점검에서 경고 표시).
+        }
+
         $candidates = array(
             dirname($pluginDir),
             dirname($pluginDir) . '/admin',

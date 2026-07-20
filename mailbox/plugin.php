@@ -66,7 +66,8 @@ if (!defined('MBX_PLUGIN_LOADED')) {
             'accounts' => array(),
             'account' => null,
             'folder' => 'inbox',
-            'unread' => array('inbox' => 0, 'sent' => 0, 'trash' => 0),
+            'folders' => array(),
+            'unread' => array(),
         );
 
         // 메일함 메뉴를 볼 수 있는 사용자에게만 준비한다(데모 모드면 지정 계정만).
@@ -92,20 +93,34 @@ if (!defined('MBX_PLUGIN_LOADED')) {
             $db = mbx_db();
             $state['accounts'] = isset($context['accounts']) && is_array($context['accounts']) ? $context['accounts'] : mbx_visible_accounts($db);
             $state['account'] = isset($context['account']) && is_array($context['account']) ? $context['account'] : mbx_current_account($db);
-            if (isset($context['folder']) && in_array($context['folder'], array('inbox', 'sent', 'trash'), true)) {
-                $state['folder'] = $context['folder'];
-            } elseif (isset($_GET['folder']) && in_array($_GET['folder'], array('inbox', 'sent', 'trash'), true)) {
-                $state['folder'] = $_GET['folder'];
-            } elseif (isset($context['row']) && is_array($context['row']) && isset($context['row']['folder_key']) && in_array($context['row']['folder_key'], array('inbox', 'sent', 'trash'), true)) {
-                $state['folder'] = $context['row']['folder_key'];
+            $state['folders'] = $state['account'] ? mbx_account_folders($db, (int)$state['account']['id'], true) : array();
+            $defaultFolder = isset($state['folders'][0]['folder_key']) ? (string)$state['folders'][0]['folder_key'] : 'inbox';
+            if (isset($context['folder'])) {
+                $state['folder'] = (string)$context['folder'];
+            } elseif (isset($_GET['folder'])) {
+                $state['folder'] = (string)$_GET['folder'];
+            } elseif (isset($context['row']) && is_array($context['row']) && isset($context['row']['folder_key'])) {
+                $state['folder'] = (string)$context['row']['folder_key'];
+            } else {
+                $state['folder'] = $defaultFolder;
+                // view.php?id= 처럼 folder 파라미터가 없는 메일박스 페이지에서는
+                // 보고 있는 메시지의 folder_key 를 조회해 폴더 강조를 이어받는다.
+                // (side_m.php 는 함수 스코프에서 include 되어 view.php 의 $row 가
+                //  context 로 전달되지 않는다.)
+                if ($state['active'] && $state['account'] && isset($_GET['id']) && (int)$_GET['id'] > 0) {
+                    $mrow = mbx_fetch_one_stmt(mbx_stmt($db, "SELECT folder_key FROM mailbox_messages WHERE id=? AND account_id=?", 'ii', array((int)$_GET['id'], (int)$state['account']['id'])));
+                    if ($mrow && (string)$mrow['folder_key'] !== '') {
+                        $state['folder'] = (string)$mrow['folder_key'];
+                    }
+                }
+            }
+            if (!$state['account'] || !mbx_folder_allowed($db, $state['account'], $state['folder'], true)) {
+                $state['folder'] = $defaultFolder;
             }
             if (isset($context['unread']) && is_array($context['unread'])) {
                 $state['unread'] = array_merge($state['unread'], $context['unread']);
             } elseif ($state['account']) {
-                foreach ($state['unread'] as $k => $v) {
-                    $unreadRow = mbx_fetch_one_stmt(mbx_stmt($db, "SELECT COUNT(*) AS c FROM mailbox_messages WHERE account_id=? AND folder_key=? AND is_read=0", 'is', array((int)$state['account']['id'], $k)));
-                    $state['unread'][$k] = isset($unreadRow['c']) ? (int)$unreadRow['c'] : 0;
-                }
+                $state['unread'] = mbx_unread_counts($db, (int)$state['account']['id'], $state['folders']);
             }
             $state['ready'] = true;
         } catch (Throwable $e) {
@@ -158,6 +173,8 @@ if (!defined('MBX_PLUGIN_LOADED')) {
         $account = $state['account'];
         $folder = $state['folder'];
         $unread = $state['unread'];
+        $folders = isset($state['folders']) ? $state['folders'] : array();
+        $folder = isset($state['folder']) ? (string)$state['folder'] : 'inbox';
         $webRoot = rtrim(mbx_plugin_web_root(), '/');
         ?>
                     <div class="mbx-sidebar" style="padding:0 10px 15px">
@@ -172,16 +189,55 @@ if (!defined('MBX_PLUGIN_LOADED')) {
                             <a href="<?php echo mbx_h($webRoot . '/accounts.php'); ?>" class="btn btn-default btn-block"><i class="fa fa-cog"></i> 계정 관리</a>
                         <?php endif; ?>
                         <a href="<?php echo mbx_h($webRoot . '/compose.php'); ?>" class="btn btn-primary btn-block"><i class="fa fa-pencil"></i> 메일 쓰기</a>
-                        <ul class="nav nav-pills nav-stacked">
-                            <li class="<?php echo $folder === 'inbox' ? 'active' : ''; ?>">
-                                <a href="<?php echo mbx_h($webRoot . '/index.php?folder=inbox'); ?>"><i class="fa fa-inbox"></i> 받은메일 <?php if (!empty($unread['inbox'])): ?><span class="badge badge-unread"><?php echo (int)$unread['inbox']; ?></span><?php endif; ?></a>
+                        <?php
+                        // 폴더가 많을 때를 대비해 "기본 폴더"(시스템)와 "내 라벨"(사용자 라벨) 두
+                        // 그룹으로 나눠 각각 접었다 펼 수 있게 한다. 시스템 폴더 키는 IMAP 특수용도
+                        // 속성으로 매핑된 고정 키(MailboxSync::folderKeyFromListRow)이고, 그 외는 라벨.
+                        $mbxSystemKeys = array('inbox', 'starred', 'important', 'sent', 'drafts', 'all', 'trash');
+                        $mbxSystemFolders = array();
+                        $mbxLabelFolders = array();
+                        foreach ($folders as $folderRow) {
+                            if (in_array((string)$folderRow['folder_key'], $mbxSystemKeys, true)) {
+                                $mbxSystemFolders[] = $folderRow;
+                            } else {
+                                $mbxLabelFolders[] = $folderRow;
+                            }
+                        }
+                        $mbxRenderFolderLi = function ($folderRow, $group) use ($folder, $unread, $webRoot) {
+                            $fkey = (string)$folderRow['folder_key'];
+                            $icon = 'fa-folder-o';
+                            if ($fkey === 'inbox') { $icon = 'fa-inbox'; }
+                            elseif ($fkey === 'sent') { $icon = 'fa-paper-plane'; }
+                            elseif ($fkey === 'trash') { $icon = 'fa-trash'; }
+                            elseif ($fkey === 'drafts') { $icon = 'fa-file-text-o'; }
+                            elseif ($fkey === 'all') { $icon = 'fa-archive'; }
+                            elseif ($fkey === 'starred') { $icon = 'fa-star'; }
+                            elseif ($fkey === 'important') { $icon = 'fa-bookmark'; }
+                            $active = $folder === $fkey ? ' active' : '';
+                            ?>
+                            <li class="mbx-folder-item<?php echo $active; ?>" data-group="<?php echo $group; ?>">
+                                <a href="<?php echo mbx_h($webRoot . '/index.php?folder=' . urlencode($fkey)); ?>"><i class="fa <?php echo $icon; ?>"></i> <?php echo mbx_h(mbx_folder_display_name($folderRow)); ?> <?php if (!empty($unread[$fkey])): ?><span class="badge badge-unread"><?php echo (int)$unread[$fkey]; ?></span><?php endif; ?></a>
                             </li>
-                            <li class="<?php echo $folder === 'sent' ? 'active' : ''; ?>">
-                                <a href="<?php echo mbx_h($webRoot . '/index.php?folder=sent'); ?>"><i class="fa fa-paper-plane"></i> 보낸메일</a>
+                            <?php
+                        };
+                        ?>
+                        <style>
+                        .mbx-folder-nav .mbx-folder-header > a{color:#95a1b3;font-size:12px;font-weight:700;padding:8px 10px 4px;cursor:pointer;background:transparent!important}
+                        .mbx-folder-nav .mbx-folder-header > a:hover,.mbx-folder-nav .mbx-folder-header > a:focus{color:#4a5568}
+                        .mbx-folder-nav .mbx-folder-header .mbx-caret{display:inline-block;width:12px;margin-right:4px;text-align:center}
+                        .mbx-folder-nav .mbx-folder-count{font-weight:400;color:#b0b8c4}
+                        </style>
+                        <ul class="nav nav-pills nav-stacked mbx-folder-nav">
+                            <li class="mbx-folder-header" data-group="system">
+                                <a href="#"><i class="fa fa-caret-down mbx-caret"></i> 기본 폴더</a>
                             </li>
-                            <li class="<?php echo $folder === 'trash' ? 'active' : ''; ?>">
-                                <a href="<?php echo mbx_h($webRoot . '/index.php?folder=trash'); ?>"><i class="fa fa-trash"></i> 휴지통</a>
+                            <?php foreach ($mbxSystemFolders as $folderRow) { $mbxRenderFolderLi($folderRow, 'system'); } ?>
+                            <?php if ($mbxLabelFolders): ?>
+                            <li class="mbx-folder-header" data-group="labels">
+                                <a href="#"><i class="fa fa-caret-down mbx-caret"></i> 내 라벨 <span class="mbx-folder-count">(<?php echo count($mbxLabelFolders); ?>)</span></a>
                             </li>
+                            <?php foreach ($mbxLabelFolders as $folderRow) { $mbxRenderFolderLi($folderRow, 'labels'); } ?>
+                            <?php endif; ?>
                         </ul>
                         <br>
                         <button id="btnSync" class="btn btn-default btn-block"><i class="fa fa-refresh"></i> 동기화</button>
@@ -195,9 +251,38 @@ if (!defined('MBX_PLUGIN_LOADED')) {
             return;
         }
         $unread = $state['unread'];
+        $folders = isset($state['folders']) ? $state['folders'] : array();
+        $folder = isset($state['folder']) ? (string)$state['folder'] : 'inbox';
         $webRoot = rtrim(mbx_plugin_web_root(), '/');
         ?>
             if ($('#mbxAccount').length || $('#btnSync').length) {
+            // 사이드바 폴더 그룹 접기/펼치기 — 상태는 localStorage 로 유지한다.
+            function mbxFolderApplyGroup(group, collapsed){
+                $('.mbx-folder-item[data-group="' + group + '"]').toggleClass('hidden', collapsed);
+                var $h = $('.mbx-folder-header[data-group="' + group + '"]');
+                $h.toggleClass('mbx-collapsed', collapsed);
+                $h.find('.mbx-caret').toggleClass('fa-caret-down', !collapsed).toggleClass('fa-caret-right', collapsed);
+            }
+            $('.mbx-folder-header').each(function(){
+                var group = $(this).data('group');
+                // 저장된 접힘 상태가 있으면 그대로 쓰고, 없으면 그룹 기본값으로 시작한다.
+                // '내 라벨'(labels)은 기본 접힘, '기본 폴더'(system)는 기본 펼침.
+                var stored = null;
+                try { stored = localStorage.getItem('mbxFolderCollapsed_' + group); } catch(e){}
+                var collapsed = stored === null ? (group === 'labels') : (stored === '1');
+                // 현재 보고 있는 폴더가 이 그룹에 있으면 접혀 있어도 펼쳐서 보여준다.
+                if($('.mbx-folder-item[data-group="' + group + '"].active').length){ collapsed = false; }
+                mbxFolderApplyGroup(group, collapsed);
+            });
+            $(document).off('click.mbxFolder', '.mbx-folder-header > a').on('click.mbxFolder', '.mbx-folder-header > a', function(e){
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var $h = $(this).closest('.mbx-folder-header');
+                var group = $h.data('group');
+                var collapsed = !$h.hasClass('mbx-collapsed');
+                try { localStorage.setItem('mbxFolderCollapsed_' + group, collapsed ? '1' : '0'); } catch(e){}
+                mbxFolderApplyGroup(group, collapsed);
+            });
             $(document).off('change.mbxSide', '#mbxAccount').on('change.mbxSide', '#mbxAccount', function(e){
                 e.preventDefault();
                 e.stopImmediatePropagation();
@@ -224,7 +309,7 @@ if (!defined('MBX_PLUGIN_LOADED')) {
                     $b.remove();
                 }
             }
-            var mbxSideLastUnread = <?php echo (int)$unread['inbox']; ?>;
+            var mbxSideLastUnread = <?php echo isset($unread['inbox']) ? (int)$unread['inbox'] : 0; ?>;
             var mbxSideAutoSyncing = false;
             window.mbxSideAutoSyncInstalled = true;
             function mbxSideAutoSync(){
@@ -257,7 +342,7 @@ if (!defined('MBX_PLUGIN_LOADED')) {
                 var b = $(this), i = b.find('i');
                 b.prop('disabled', true);
                 i.addClass('fa-spin');
-                $.getJSON('<?php echo $webRoot; ?>/api/sync.php', function(r){
+                $.getJSON('<?php echo $webRoot; ?>/api/sync.php?folder=<?php echo rawurlencode($folder); ?>', function(r){
                     if(r.status === 'success'){
                         if(r.errors && Object.keys(r.errors).length){ console.log('mailbox sync partial errors', r.errors); }
                         var n = mbxSideNewCount(r);
@@ -285,8 +370,8 @@ if (!defined('MBX_PLUGIN_LOADED')) {
                 });
             });
             <?php if (!empty($state['active'])): ?>
-            setTimeout(mbxSideAutoSync, 3000);
-            setInterval(mbxSideAutoSync, 20000);
+            setTimeout(mbxSideAutoSync, 10000);
+            setInterval(mbxSideAutoSync, 60000);
             <?php endif; ?>
             }
         <?php

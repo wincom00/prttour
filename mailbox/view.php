@@ -75,12 +75,11 @@ if ($account) {
                 $row['thread_id'] = $threadId;
             }
         }
-        $threadKey = mbx_view_thread_key($row);
-        $candidates = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT * FROM mailbox_messages WHERE account_id=? ORDER BY mail_date DESC, uid DESC", 'i', array((int)$account['id'])));
-        foreach ($candidates as $candidate) {
-            if (mbx_view_thread_key($candidate) === $threadKey) {
-                $threadRows[] = $candidate;
-            }
+        $threadId = trim((string)$row['thread_id']);
+        if ($threadId !== '') {
+            $threadRows = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT * FROM mailbox_messages WHERE account_id=? AND thread_id=? ORDER BY mail_date DESC, uid DESC", 'is', array((int)$account['id'], $threadId)));
+        } else {
+            $threadRows[] = $row;
         }
         if (count($threadRows) > 1 && mbx_view_body_score($row) === 0) {
             $bestScore = 0;
@@ -171,24 +170,57 @@ function mbx_addr_line($list) {
       <?php endif; ?>
       <?php if (count($threadRows) > 1): ?>
         <div class="mbx-thread-stack">
+          <h4 class="mbx-thread-title"><i class="fa fa-comments-o"></i> 이 대화의 다른 메일 <?php echo count($threadRows) - 1; ?>개</h4>
           <?php foreach ($threadRows as $threadRow): ?>
             <?php if ((int)$threadRow['id'] === (int)$row['id']) { continue; } ?>
             <?php
+              // 첨부 다운로드는 mailbox_attachments 행이 있어야 하는데, 그 행은 본문을 실제로
+              // 받아 저장할 때만 채워진다. 첨부가 있는데 아직 본문을 안 받은 메시지는 한 번 받아 둔다
+              // (본문 표시는 아래 iframe 이 라이브로 처리하므로 표시용이 아니라 첨부 저장용이다).
+              if ((int)$threadRow['has_attachment'] === 1 && (int)$threadRow['body_fetched'] === 0) {
+                  try {
+                      global $MBX_FOLDERS;
+                      $threadSync = new MailboxSync($db, $account, $MBX_FOLDERS);
+                      $threadFetched = $threadSync->fetchBody((int)$threadRow['id']);
+                      if ($threadFetched) { $threadRow = $threadFetched; }
+                  } catch (Exception $e) {
+                      // 본문/첨부 수신 실패는 무시하고 본문 iframe 만 보여준다.
+                  }
+              }
+              $threadAtts = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT * FROM mailbox_attachments WHERE msg_id=? ORDER BY id ASC", 'i', array((int)$threadRow['id'])));
               $threadName = $threadRow['folder_key'] === 'sent' ? '보낸메일' : ($threadRow['from_name'] !== '' ? $threadRow['from_name'] : $threadRow['from_email']);
               $threadTs = strtotime((string)$threadRow['mail_date']);
-              $threadDate = $threadTs ? date('m-d H:i', $threadTs) : mbx_date_label($threadRow['mail_date']);
-              $threadSnippet = MimeParser::cleanPreviewText(($threadRow['body_html'] !== '' ? $threadRow['body_html'] : ($threadRow['body_text'] !== '' ? $threadRow['body_text'] : $threadRow['snippet'])), 160);
-              $threadState = mbx_view_body_score($threadRow) >= 3 ? '' : (mbx_view_body_score($threadRow) === 1 ? '미리보기' : '본문 없음');
+              $threadDate = $threadTs ? date('Y-m-d H:i', $threadTs) : mbx_date_label($threadRow['mail_date']);
             ?>
-            <a class="mbx-thread-card" href="<?php echo mbx_h(mbx_plugin_url('view.php?id=' . (int)$threadRow['id'])); ?>">
-              <span class="mbx-thread-avatar"><?php echo mbx_h(function_exists('mb_substr') ? mb_substr($threadName, 0, 1, 'UTF-8') : substr($threadName, 0, 1)); ?></span>
-              <span class="mbx-thread-main">
-                <strong><?php echo mbx_h($threadName); ?></strong>
-                <?php if ($threadSnippet !== ''): ?><span><?php echo mbx_h($threadSnippet); ?></span><?php endif; ?>
-                <?php if ($threadState !== ''): ?><em><?php echo mbx_h($threadState); ?></em><?php endif; ?>
-              </span>
-              <span class="mbx-thread-meta"><?php if ((int)$threadRow['has_attachment']): ?><i class="fa fa-paperclip"></i><?php endif; ?> <?php echo mbx_h($threadDate); ?></span>
-            </a>
+            <div class="mbx-thread-msg">
+              <div class="mbx-thread-msg-head">
+                <span class="mbx-thread-avatar"><?php echo mbx_h(function_exists('mb_substr') ? mb_substr($threadName, 0, 1, 'UTF-8') : substr($threadName, 0, 1)); ?></span>
+                <span class="mbx-thread-msg-name"><strong><?php echo mbx_h($threadName); ?></strong></span>
+                <span class="mbx-thread-msg-meta"><?php if ((int)$threadRow['has_attachment']): ?><i class="fa fa-paperclip"></i> <?php endif; ?><?php echo mbx_h($threadDate); ?></span>
+                <a class="btn btn-default btn-xs mbx-thread-open" href="<?php echo mbx_h(mbx_plugin_url('view.php?id=' . (int)$threadRow['id'])); ?>"><i class="fa fa-external-link"></i> 크게 보기</a>
+              </div>
+              <iframe class="mbx-thread-body" src="<?php echo mbx_h(mbx_plugin_url('api/body.php?id=' . (int)$threadRow['id'] . '&v=' . (int)time())); ?>" sandbox="allow-same-origin" style="width:100%;border:1px solid #e5e5e5;min-height:160px"></iframe>
+              <?php if ($threadAtts): ?>
+                <div class="panel panel-default mbx-attachments-panel"><div class="panel-heading"><i class="fa fa-paperclip"></i> 첨부파일 <?php echo count($threadAtts); ?>개</div><div class="panel-body">
+                  <?php foreach ($threadAtts as $att): ?>
+                    <?php
+                      $attId = (int)$att['id'];
+                      $attName = $att['filename'] ?: 'attachment';
+                      $attMime = isset($att['mime_type']) ? (string)$att['mime_type'] : '';
+                      $isImageAttachment = preg_match('/^image\//i', $attMime);
+                    ?>
+                    <span class="mbx-attachment-item">
+                      <?php if ($isImageAttachment): ?>
+                        <a class="mbx-attachment-preview" href="<?php echo mbx_h(mbx_plugin_url('api/attachment.php?id=' . $attId . '&inline=1')); ?>" target="_blank" rel="noopener">
+                          <img src="<?php echo mbx_h(mbx_plugin_url('api/attachment.php?id=' . $attId . '&inline=1')); ?>" alt="<?php echo mbx_h($attName); ?>">
+                        </a>
+                      <?php endif; ?>
+                      <a class="btn btn-default btn-sm" href="<?php echo mbx_h(mbx_plugin_url('api/attachment.php?id=' . $attId)); ?>"><i class="fa fa-download"></i> <?php echo mbx_h($attName); ?> (<?php echo mbx_h(mbx_size($att['size_bytes'])); ?>)</a>
+                    </span>
+                  <?php endforeach; ?>
+                </div></div>
+              <?php endif; ?>
+            </div>
           <?php endforeach; ?>
         </div>
       <?php endif; ?>
@@ -202,15 +234,16 @@ function mbx_addr_line($list) {
 .mbx-attachment-preview img{max-width:100%;max-height:100%;object-fit:contain}
 .mbx-attachment-preview.mbx-preview-broken{display:none}
 .mbx-attachments-panel{margin-top:12px}
-.mbx-thread-stack{margin-top:16px;border-top:1px solid #e5e5e5}
-.mbx-thread-card{display:flex;align-items:center;gap:10px;padding:12px 8px;border-bottom:1px solid #e5e5e5;color:#333;text-decoration:none;background:#fff}
-.mbx-thread-card:hover{background:#f7fbff;text-decoration:none}
-.mbx-thread-avatar{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#607d8b;color:#fff;font-weight:bold;flex:0 0 34px}
-.mbx-thread-main{display:block;min-width:0;flex:1;color:#333}
-.mbx-thread-main strong{display:block;margin-bottom:2px}
-.mbx-thread-main span{display:block;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mbx-thread-main em{font-style:normal;color:#999}
-.mbx-thread-meta{color:#777;white-space:nowrap;font-size:12px}
+.mbx-thread-stack{margin-top:24px;border-top:2px solid #e5e5e5;padding-top:12px}
+.mbx-thread-title{color:#555;font-size:14px;margin:0 0 12px}
+.mbx-thread-msg{margin-bottom:18px;border:1px solid #e5e5e5;border-radius:4px;overflow:hidden;background:#fff}
+.mbx-thread-msg-head{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f7f9fc;border-bottom:1px solid #e5e5e5}
+.mbx-thread-avatar{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#607d8b;color:#fff;font-weight:bold;flex:0 0 30px}
+.mbx-thread-msg-name{flex:1;min-width:0;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mbx-thread-msg-meta{color:#777;white-space:nowrap;font-size:12px}
+.mbx-thread-open{white-space:nowrap}
+.mbx-thread-body{display:block}
+.mbx-thread-msg .mbx-attachments-panel{margin:0;border-top:1px solid #e5e5e5;border-left:0;border-right:0;border-bottom:0;box-shadow:none}
 </style>
 <script>
 $(document).on('click','#btnTrash',function(){
@@ -221,17 +254,31 @@ $(document).on('click','#btnTrash',function(){
 $(document).on('error', '.mbx-attachment-preview img', function(){
   $(this).closest('.mbx-attachment-preview').addClass('mbx-preview-broken');
 });
-function mbxResizeBodyFrame(){
-  var frame = $('#mbxBody')[0];
+function mbxResizeFrame(frame, minH){
   if (!frame || !frame.contentWindow || !frame.contentWindow.document) return;
   try {
     var doc = frame.contentWindow.document;
     var body = doc.body || {};
     var root = doc.documentElement || {};
     var h = Math.max(body.scrollHeight || 0, body.offsetHeight || 0, root.scrollHeight || 0, root.offsetHeight || 0);
-    $('#mbxBody').height(Math.max(500, h + 30));
+    $(frame).height(Math.max(minH, h + 30));
   } catch(e) {}
 }
+function mbxResizeBodyFrame(){
+  mbxResizeFrame($('#mbxBody')[0], 500);
+  $('.mbx-thread-body').each(function(){ mbxResizeFrame(this, 120); });
+}
+$(function(){
+  $('.mbx-thread-body').each(function(){
+    $(this).on('load', function(){
+      var f = this;
+      mbxResizeFrame(f, 120);
+      try { $(f.contentWindow.document).find('img').on('load error', function(){ mbxResizeFrame(f, 120); }); } catch(e) {}
+      setTimeout(function(){ mbxResizeFrame(f, 120); }, 400);
+      setTimeout(function(){ mbxResizeFrame(f, 120); }, 1200);
+    });
+  });
+});
 $('#mbxBody').on('load', function(){
   mbxResizeBodyFrame();
   try {
