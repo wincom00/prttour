@@ -102,14 +102,14 @@
     $cont =get_html('in_1');
 
 	// 이메일용 공통 인라인 스타일 (메일 클라이언트가 <style>를 지원하지 않으므로 전부 인라인 처리)
-	$st_tbl   = "width:100%;border-collapse:collapse;font-size:13px;line-height:1.7;border-top:2px solid #3a4a5c;border-bottom:1px solid #c9cfd6;margin-bottom:6px;";
+	$st_tbl   = "width:100%;border-collapse:collapse;font-size:14px;line-height:1.7;border-top:2px solid #3a4a5c;border-bottom:1px solid #c9cfd6;margin-bottom:6px;";
 	$st_label = "background:#f6f8fa;color:#45505c;font-weight:bold;text-align:center;white-space:nowrap;padding:8px 12px;border-bottom:1px solid #e2e6ea;border-right:1px solid #e2e6ea;";
 	$st_val   = "padding:8px 12px;border-bottom:1px solid #e2e6ea;";
 	$st_th    = "background:#f6f8fa;color:#45505c;font-weight:bold;text-align:center;padding:9px 8px 7px;border-bottom:1px solid #c9cfd6;";
-	$st_h6    = "margin:1px 0 0;font-size:10px;font-weight:normal;color:#8b95a1;letter-spacing:.5px;text-transform:uppercase;line-height:1.2;";
+	$st_h6    = "margin:1px 0 0;font-size:11px;font-weight:normal;color:#8b95a1;letter-spacing:.5px;text-transform:uppercase;line-height:1.2;";
 	$st_c     = "padding:8px 10px;text-align:center;border-bottom:1px solid #e2e6ea;";
 	$st_amt   = "padding:8px 12px;text-align:right;border-bottom:1px solid #e2e6ea;white-space:nowrap;";
-	$st_head  = "font-size:14px;font-weight:bold;color:#22303e;padding:4px 0 8px 10px;margin:20px 0 10px;border-left:3px solid #2b5d8c;border-bottom:1px solid #e3e7ec;line-height:1.5;";
+	$st_head  = "font-size:15px;font-weight:bold;color:#22303e;padding:4px 0 8px 10px;margin:20px 0 10px;border-left:3px solid #2b5d8c;border-bottom:1px solid #e3e7ec;line-height:1.5;";
 	$st_total = "border-top:2px solid #3a4a5c;background:#fbfcfd;font-weight:bold;padding:10px 12px;";
 ?>
 <!DOCTYPE html>
@@ -122,14 +122,14 @@
 
 </head>
 
-<body style="margin:0;padding:0;background:#eceef1;font-family:'Nanum Gothic','Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:13px;color:#2b3138;">
+<body style="margin:0;padding:0;background:#eceef1;font-family:'Nanum Gothic','Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:14px;color:#2b3138;">
 	<div style="max-width:920px;margin:0 auto;background:#ffffff;border:1px solid #d7dbe0;padding:30px 32px 40px;">
 
 	<div style="text-align:center;margin:16px 0 24px;">
-		<h2 style="display:inline-block;font-size:20px;font-weight:800;letter-spacing:10px;text-indent:10px;color:#22303e;padding-bottom:8px;border-bottom:2px solid #22303e;margin:0;">예약내역</h2>
+		<h2 style="display:inline-block;font-size:22px;font-weight:800;letter-spacing:10px;text-indent:10px;color:#22303e;padding-bottom:8px;border-bottom:2px solid #22303e;margin:0;">예약내역</h2>
 	</div>
 
-	<div style="text-align:center;font-size:15px;font-weight:bold;color:#2b5d8c;letter-spacing:1px;padding:13px 0;border-top:1px solid #2b5d8c;border-bottom:1px solid #dfe3e8;background:#f7fafc;margin-bottom:26px;">예약이 완료되었습니다.</div>
+	<div style="text-align:center;font-size:16px;font-weight:bold;color:#2b5d8c;letter-spacing:1px;padding:13px 0;border-top:1px solid #2b5d8c;border-bottom:1px solid #dfe3e8;background:#f7fafc;margin-bottom:26px;">예약이 완료되었습니다.</div>
 
 
 	<div style="<?=$st_head?>">1. 예약자 정보</div>
@@ -273,23 +273,23 @@
 	</div>
 
 	<!-- invoice page -->
-	<div id="invoice" style="margin-top:36px;font-size:13px;line-height:1.7;color:#2b3138;">
+	<div id="invoice" style="margin-top:36px;font-size:14px;line-height:1.7;color:#2b3138;">
 
 			<header style="padding-bottom:14px;margin-bottom:22px;border-bottom:2px solid #2b5d8c;">
-				<img src="http://www.myprt.org/img/top_in3.jpg" data-holder-rendered="true" style="width:100%;height:auto;display:block;"/>
+				<img src="https://www.myprt.org/img/top_in3.jpg" data-holder-rendered="true" style="width:100%;height:auto;display:block;"/>
 			</header>
 			<main style="padding-bottom:30px;">
-				<h2 style="text-align:center;font-size:24px;font-weight:bold;letter-spacing:8px;text-indent:8px;color:#22303e;margin:6px 0 24px;">INVOICE</h2>
+				<h2 style="text-align:center;font-size:26px;font-weight:bold;letter-spacing:8px;text-indent:8px;color:#22303e;margin:6px 0 24px;">INVOICE</h2>
 
 				<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
 					<tr>
 						<td style="vertical-align:top;text-align:left;">
-							<h2 style="margin:0 0 7px;font-size:12px;font-weight:800;letter-spacing:1px;color:#2b5d8c;padding-bottom:5px;border-bottom:1px solid #e3e7ec;">고객정보 | Customer(s)</h2>
-							<h2 style="margin:0 0 2px;font-size:17px;font-weight:normal;color:#22303e;"><b><?=$revInfo['book_pri']?></b> 님</h2>
+							<h2 style="margin:0 0 7px;font-size:13px;font-weight:800;letter-spacing:1px;color:#2b5d8c;padding-bottom:5px;border-bottom:1px solid #e3e7ec;">고객정보 | Customer(s)</h2>
+							<h2 style="margin:0 0 2px;font-size:18px;font-weight:normal;color:#22303e;"><b><?=$revInfo['book_pri']?></b> 님</h2>
 							<div style="color:#5a6572;"><?=$revInfo['book_phone']?></div>
 						</td>
 						<td style="vertical-align:top;text-align:right;">
-							<span style="display:inline-block;font-size:13px;font-weight:bold;color:#22303e;background:#f6f8fa;border:1px solid #dfe3e8;padding:8px 16px;margin-top:20px;">예약번호 : <?=$r_code?></span>
+							<span style="display:inline-block;font-size:14px;font-weight:bold;color:#22303e;background:#f6f8fa;border:1px solid #dfe3e8;padding:8px 16px;margin-top:20px;">예약번호 : <?=$r_code?></span>
 						</td>
 					</tr>
 				</table>
@@ -347,7 +347,7 @@
 						<tr>
 							<td style="<?=$st_total?>"><b>최종 결제금액</b></td>
 							<td colspan="3" style="<?=$st_total?>"></td>
-							<td style="<?=$st_total?>text-align:right;font-size:15px;color:#22303e;white-space:nowrap;" width="18%"><?=$sign?> <?php echo number_format($totamt,2);?>&nbsp;</td>
+							<td style="<?=$st_total?>text-align:right;font-size:16px;color:#22303e;white-space:nowrap;" width="18%"><?=$sign?> <?php echo number_format($totamt,2);?>&nbsp;</td>
 						</tr>
 
 					</tbody>
@@ -547,7 +547,7 @@
 				</table>
 
 				<div style="<?=$st_head?>">변경 및 취소규정 | Changes & Cancellation</div>
-				<div style="font-size:12px;line-height:1.9;color:#45505c;" id=terms>
+				<div style="font-size:13px;line-height:1.9;color:#45505c;" id=terms>
 
 					<div style="margin-top:10px;">
 

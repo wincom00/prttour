@@ -132,7 +132,7 @@
   /* ---------- 기본 ---------- */
   body {
 	  font-family: 'Nanum Gothic', 'Malgun Gothic', sans-serif;
-	  font-size: 13px;
+	  font-size: 14px;
 	  color: #2b3138;
 	  background: #fff;
 	  -webkit-font-smoothing: antialiased;
@@ -157,7 +157,7 @@
   }
   .page-title h2 {
 	  display: inline-block;
-	  font-size: 21px;
+	  font-size: 23px;
 	  font-weight: 800;
 	  letter-spacing: 10px;
 	  text-indent: 10px;
@@ -170,7 +170,7 @@
   /* ---------- 완료 안내 배너 ---------- */
   .confim_book {
 	  text-align: center;
-	  font-size: 15px;
+	  font-size: 16px;
 	  font-weight: 700;
 	  color: #2b5d8c;
 	  letter-spacing: 1px;
@@ -183,7 +183,7 @@
 
   /* ---------- 섹션 헤더 ---------- */
   .book_header {
-	  font-size: 15px;
+	  font-size: 16px;
 	  font-weight: 800;
 	  color: #22303e;
 	  padding: 4px 0 8px 10px;
@@ -197,7 +197,7 @@
   table.tbl {
 	  width: 100%;
 	  border-collapse: collapse;
-	  font-size: 13px;
+	  font-size: 14px;
 	  line-height: 1.7;
 	  margin-bottom: 6px;
 	  border-top: 2px solid #3a4a5c;
@@ -229,7 +229,7 @@
   }
   table.tbl thead th h6 {
 	  margin: 1px 0 0;
-	  font-size: 10px;
+	  font-size: 11px;
 	  font-weight: 400;
 	  color: #8b95a1;
 	  letter-spacing: .5px;
@@ -248,7 +248,7 @@
 	  padding-top: 10px;
 	  padding-bottom: 10px;
   }
-  table.tbl tr.row-total td.amount { font-size: 15px; color: #22303e; }
+  table.tbl tr.row-total td.amount { font-size: 16px; color: #22303e; }
   table.tbl tr.row-sub td { background: #fbfcfd; font-weight: 700; }
   table.tbl tr.row-due td { background: #fbfcfd; font-weight: 700; color: #b03030; }
 
@@ -262,7 +262,7 @@
   .invoice-title {
 	  text-align: center;
 	  font-family: 'Montserrat', sans-serif;
-	  font-size: 26px;
+	  font-size: 28px;
 	  font-weight: 700;
 	  letter-spacing: 8px;
 	  text-indent: 8px;
@@ -271,7 +271,7 @@
   }
   .invoice .contacts { margin-bottom: 8px; }
   .invoice-to h2.invoice-to {
-	  font-size: 12px;
+	  font-size: 13px;
 	  font-weight: 800;
 	  letter-spacing: 1px;
 	  color: #2b5d8c;
@@ -280,7 +280,7 @@
 	  border-bottom: 1px solid #e3e7ec;
   }
   .invoice-to h2.no-color {
-	  font-size: 17px;
+	  font-size: 18px;
 	  font-weight: 400;
 	  color: #22303e;
 	  margin: 0 0 2px;
@@ -289,7 +289,7 @@
   .invoice-details { text-align: right; }
   .invoice-details .invoice-id {
 	  display: inline-block;
-	  font-size: 13px;
+	  font-size: 14px;
 	  font-weight: 700;
 	  color: #22303e;
 	  background: #f6f8fa;
@@ -299,7 +299,7 @@
   }
   .tour-details { margin: 22px 0 0; }
   .tour-details h2.invoice-to {
-	  font-size: 13px;
+	  font-size: 14px;
 	  font-weight: 800;
 	  letter-spacing: .5px;
 	  color: #22303e;
@@ -324,7 +324,7 @@
   @media print {
 	  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; }
 	  @page {
-		  size: auto;
+		  size: letter;
 		  margin: 0 16mm;
 	  }
 	  .sheet { margin: 0; padding: 0; max-width: none; }
@@ -341,7 +341,7 @@
 	  .tour-details h2.invoice-to { page-break-after: avoid; }
 	  /* 취소규정을 살짝 압축해 마지막 인사말이 규정 마지막 페이지에
 	     함께 들어가도록 한다 (DB 인라인 스타일보다 우선하도록 !important) */
-	  .terms-body td { font-size: 12px !important; line-height: 1.55 !important; }
+	  .terms-body td { font-size: 13px !important; line-height: 1.55 !important; }
 	  .terms-body p { margin: 0 0 7px; }
 	  /* Bootstrap .row(display:flex)가 여러 페이지 분량의 취소규정을 감싸면
 	     print-frame 테이블과의 조각화(fragmentation) 충돌로 마지막에
@@ -534,7 +534,7 @@
 							<div><B>한국사무소: </B> 서울 종로구 종로 19, A동 714호 종로1가, 르메이에르 종로타운1, TEL: 02-720-7767, FAX: 02-720-7769 </div>
 							<div>GST Registration No.  8574 12191RT0001 www.parantours.com </div>
 							<div>TICO Registration No. 50015723  KATALK: 파란여행 admin@parantours.com </div>-->
-							<img src="http://www.myprt.biz/img/top_in3.jpg" data-holder-rendered="true"/>
+							<img src="https://www.myprt.biz/img/top_in3.jpg" data-holder-rendered="true"/>
 
 						</div>
 					</div>
