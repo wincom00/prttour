@@ -61,9 +61,7 @@
 		$user_dbinfo = getinfo_dbMember($user_info['user_id']);
         
 		
-	} 
-	
-  
+	}
     
 	
 ?>
