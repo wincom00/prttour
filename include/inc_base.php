@@ -26,13 +26,6 @@
 	if (is_array($_SERVER)) extract($_SERVER);
 	if (is_array($_COOKIE)) extract($_COOKIE);
 	if (is_array($_FILES)) extract($_FILES); 
-	foreach (['_GET','_POST','_COOKIE'] as $sg) {
-	  foreach ($$sg as $k => $v) {
-		if (preg_match('/^[A-Za-z_]\w*$/', $k) && !isset($GLOBALS[$k])) {
-		  $GLOBALS[$k] = $v;
-		}
-	  }
-	}
     
 	include __DIR__ . "/dbconn.php";
 	include __DIR__ . "/c_misc_inc.php";
@@ -41,19 +34,14 @@
 	include _BASE_DIR."/PHPMailer/class.phpmailer.php";
 	include _BASE_DIR."/ses.php";
     
-	$pre_doamin =  $HTTP_HOST;
-	$pre_doamin = str_replace("www.","",$pre_doamin);
-	$c_domain = (in_array($pre_doamin, ['localhost', '127.0.0.1']) || strpos($pre_doamin, '_') !== false || preg_match('/\.(test|local|dev)$/', $pre_doamin)) ? '' : '.'.$pre_doamin;
+	$pre_doamin = str_replace("www.","",$HTTP_HOST);
+	$c_domain = (in_array($pre_doamin, ['localhost', '127.0.0.1']) 
+	|| strpos($pre_doamin, '_') !== false
+	 || preg_match('/\.(test|local|dev)$/', $pre_doamin)) ? '' : '.'.$pre_doamin;
 
 	$G_Current_Url = $_SERVER["SCRIPT_URI"];
 	$G_Current_Page = $_SERVER["REQUEST_URI"];	
 
-	@extract($_GET);
-	@extract($_POST);
-	@extract($_SERVER);
-	@extract($_COOKIE);
-	//print_r($_COOKIE);
-	//exit;
 	//아이디가 있다면 회원정보 분석해라
 	if( $_COOKIE['MEMLOGIN_ADMIN_PURUN'])
 	{
