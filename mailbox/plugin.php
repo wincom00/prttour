@@ -216,7 +216,7 @@ if (!defined('MBX_PLUGIN_LOADED')) {
                             $active = $folder === $fkey ? ' active' : '';
                             ?>
                             <li class="mbx-folder-item<?php echo $active; ?>" data-group="<?php echo $group; ?>">
-                                <a href="<?php echo mbx_h($webRoot . '/index.php?folder=' . urlencode($fkey)); ?>"><i class="fa <?php echo $icon; ?>"></i> <?php echo mbx_h(mbx_folder_display_name($folderRow)); ?> <?php if (!empty($unread[$fkey])): ?><span class="badge badge-unread"><?php echo (int)$unread[$fkey]; ?></span><?php endif; ?></a>
+                                <a href="<?php echo mbx_h($webRoot . '/index.php?folder=' . urlencode($fkey)); ?>" data-folder="<?php echo mbx_h($fkey); ?>"><i class="fa <?php echo $icon; ?>"></i> <?php echo mbx_h(mbx_folder_display_name($folderRow)); ?> <?php if (!empty($unread[$fkey])): ?><span class="badge badge-unread"><?php echo (int)$unread[$fkey]; ?></span><?php endif; ?></a>
                             </li>
                             <?php
                         };
@@ -298,17 +298,23 @@ if (!defined('MBX_PLUGIN_LOADED')) {
                 }
                 return n;
             }
-            function mbxSideUpdateBadge(n){
-                var $a = $('.mbx-sidebar a[href="<?php echo $webRoot; ?>/index.php?folder=inbox"], .mbx-sidebar a[href="?folder=inbox"]');
-                if(!$a.length){ return; }
-                var $b = $a.find('.badge-unread');
-                if(n > 0){
-                    if(!$b.length){ $b = $('<span class="badge badge-unread"></span>').appendTo($a); }
-                    $b.text(n);
-                } else {
-                    $b.remove();
-                }
-            }
+            // 폴더별 안읽음 뱃지 갱신. map 은 api/sync.php · api/list.php 의 unread
+            // (folder_key => 안읽음 건수). 응답에 없는 폴더는 0 으로 보고 뱃지를 지운다.
+            // index.php 등 다른 페이지 스크립트도 이 함수를 쓴다.
+            window.mbxUpdateFolderBadges = function(map){
+                if(!map){ return; }
+                $('.mbx-sidebar .mbx-folder-item > a[data-folder]').each(function(){
+                    var $a = $(this);
+                    var n = parseInt(map[$a.data('folder')], 10) || 0;
+                    var $b = $a.find('.badge-unread');
+                    if(n > 0){
+                        if(!$b.length){ $b = $('<span class="badge badge-unread"></span>').appendTo($a); }
+                        $b.text(n);
+                    } else {
+                        $b.remove();
+                    }
+                });
+            };
             var mbxSideLastUnread = <?php echo isset($unread['inbox']) ? (int)$unread['inbox'] : 0; ?>;
             var mbxSideAutoSyncing = false;
             window.mbxSideAutoSyncInstalled = true;
@@ -320,7 +326,7 @@ if (!defined('MBX_PLUGIN_LOADED')) {
                     if(r.errors && Object.keys && Object.keys(r.errors).length){ console.log('mailbox auto sync partial errors', r.errors); }
                     var unread = parseInt(r.unread_inbox, 10) || 0;
                     var newCount = mbxSideNewCount(r);
-                    mbxSideUpdateBadge(unread);
+                    window.mbxUpdateFolderBadges(r.unread);
                     if((newCount > 0 || unread > mbxSideLastUnread) && window.mbxToast){
                         mbxToast('새 메일 ' + Math.max(newCount, unread - mbxSideLastUnread) + '통이 도착했습니다.');
                     }

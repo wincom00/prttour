@@ -2706,7 +2706,23 @@
 			  $status = '미등록';
 		  }
 
-		  return $status; 
+		  return $status;
+
+	}
+	//차량별정산 상태가져오기
+	function getCarStStatus($grand_eCode,$sub_eCode,$stDate){
+
+		  global $dbConn;
+
+		  $query = "SELECT COUNT(*) cnt FROM car_settlesum WHERE grand_eCode = '$grand_eCode'
+		  AND sub_eCode = '$sub_eCode' ";
+		  $rst1 = mysql_query($query,$dbConn);
+		  $data_row = mysql_fetch_assoc($rst1);
+
+		  if($data_row['cnt'] >0) $status = '<font color=red>정산등록</font>';
+		  else $status = '미등록';
+
+		  return $status;
 
 	}
 	//호텔리스트
@@ -2724,7 +2740,17 @@
 
 	  $query = "SELECT * FROM code_base WHERE lvcode1 = 'E01' and lvcode2 !='00' ";
 	  $rst1 = mysql_query($query,$dbConn);
-	  
+
+	  return $rst1;
+
+   }
+   //차량별 정산 기타비용 리스트
+   function getEtcCostSelect3(){
+	  global $dbConn;
+
+	  $query = "SELECT * FROM code_base WHERE lvcode1 = 'E03' and lvcode2 !='00' ";
+	  $rst1 = mysql_query($query,$dbConn);
+
 	  return $rst1;
 
    }

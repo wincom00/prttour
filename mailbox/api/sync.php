@@ -33,7 +33,7 @@ try {
     $folder = isset($_GET['folder']) ? (string)$_GET['folder'] : '';
     $result = array();
     $errors = array();
-    $unreadInbox = 0;
+    $unread = array();
     foreach ($accounts as $account) {
         $sync = new MailboxSync($db, $account, $MBX_FOLDERS);
         if ($folder !== '') {
@@ -54,10 +54,14 @@ try {
                 $errors[$account['email']] = $synced['errors'];
             }
         }
-        $u = mbx_fetch_one_stmt(mbx_stmt($db, "SELECT COUNT(*) AS c FROM mailbox_messages WHERE account_id=? AND folder_key='inbox' AND is_read=0", 'i', array((int)$account['id'])));
-        $unreadInbox += (int)$u['c'];
+        // 사이드바 뱃지를 폴더별로 갱신할 수 있게 안읽음 건수를 폴더 단위로 모두 넘긴다.
+        $uRows = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT folder_key, COUNT(*) AS c FROM mailbox_messages WHERE account_id=? AND is_read=0 GROUP BY folder_key", 'i', array((int)$account['id'])));
+        foreach ($uRows as $uRow) {
+            $key = (string)$uRow['folder_key'];
+            $unread[$key] = (isset($unread[$key]) ? $unread[$key] : 0) + (int)$uRow['c'];
+        }
     }
-    mbx_json(array('status' => 'success', 'new' => $result, 'errors' => $errors, 'unread_inbox' => $unreadInbox));
+    mbx_json(array('status' => 'success', 'new' => $result, 'errors' => $errors, 'unread' => $unread, 'unread_inbox' => isset($unread['inbox']) ? $unread['inbox'] : 0));
 } catch (Throwable $e) {
     mbx_json(array('status' => 'error', 'message' => $e->getMessage()), 200);
 }

@@ -117,7 +117,11 @@ try {
         $html = '<tr><td colspan="6" class="text-center">' . mbx_h($noMail) . '</td></tr>';
     }
 
-    $unread = mbx_fetch_one_stmt(mbx_stmt($db, "SELECT COUNT(*) AS c FROM mailbox_messages WHERE account_id=? AND folder_key='inbox' AND is_read=0", 'i', array((int)$account['id'])));
+    // 사이드바 뱃지를 폴더별로 갱신할 수 있게 안읽음 건수를 폴더 단위로 모두 넘긴다.
+    $unread = array();
+    foreach (mbx_fetch_all_stmt(mbx_stmt($db, "SELECT folder_key, COUNT(*) AS c FROM mailbox_messages WHERE account_id=? AND is_read=0 GROUP BY folder_key", 'i', array((int)$account['id']))) as $uRow) {
+        $unread[(string)$uRow['folder_key']] = (int)$uRow['c'];
+    }
     mbx_json(array(
         'status' => 'success',
         'rows_html' => $html,
@@ -125,7 +129,8 @@ try {
         'ids' => $ids,
         'total_rows' => $totalRows,
         'total_pages' => $totalPages,
-        'unread_inbox' => isset($unread['c']) ? (int)$unread['c'] : 0,
+        'unread' => $unread,
+        'unread_inbox' => isset($unread['inbox']) ? $unread['inbox'] : 0,
     ));
 } catch (Throwable $e) {
     mbx_json(array('status' => 'error', 'message' => $e->getMessage()), 200);

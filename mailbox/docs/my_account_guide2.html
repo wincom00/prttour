@@ -1,0 +1,569 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<link rel="stylesheet" href="/img/font-awesome/css/font-awesome.min.css">
+</head><body><title>내 메일 계정 추가하기</title>
+<style>
+  :root{
+    --shell-bg:#eef1f6; --shell-fg:#1b2333; --shell-muted:#5b6678;
+    --shell-panel:#ffffff; --shell-line:#d5dbe5; --accent:#1d4ed8;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --shell-bg:#12161f; --shell-fg:#e7ecf5; --shell-muted:#9aa6ba;
+      --shell-panel:#1a1f2b; --shell-line:#2b3446; --accent:#7aa2ff;
+    }
+  }
+  :root[data-theme="dark"]{
+    --shell-bg:#12161f; --shell-fg:#e7ecf5; --shell-muted:#9aa6ba;
+    --shell-panel:#1a1f2b; --shell-line:#2b3446; --accent:#7aa2ff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--shell-bg); color:var(--shell-fg);
+    font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1360px;margin:0 auto;padding:18px 16px 40px;display:flex;flex-direction:column;gap:14px}
+  .head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .head h1{font-size:20px;margin:0;letter-spacing:-.025em;font-weight:800}
+  .head span{font-size:13px;color:var(--shell-muted)}
+  .head .tag{margin-left:auto;font-size:12px;font-weight:700;color:var(--shell-muted);border:1px solid var(--shell-line);border-radius:999px;padding:4px 11px}
+
+  /* ===== 화면(스크린) : 1600×900으로 그리고 JS가 폭에 맞춰 축소 ===== */
+  .screenbox{overflow-x:auto;overflow-y:hidden}
+  .screen{
+    position:relative; width:100%; min-width:720px; aspect-ratio:1600/900;
+    background:#fff; color:#1c2430; border:1px solid var(--shell-line);
+    border-radius:10px; overflow:hidden; box-shadow:0 10px 34px rgba(15,23,42,.16);
+  }
+  .stage{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;font-size:14px}
+
+  .topbar{height:78px;background:#fff;border-bottom:1px solid #e3e7ee;display:flex;align-items:center;padding:0 26px;gap:34px}
+  .logo{font-size:27px;font-weight:800;color:#1f3fa8;letter-spacing:-.03em;white-space:nowrap}
+  .gnb{display:flex;gap:26px;font-size:16px;font-weight:700;color:#2b3240}
+  .qbtns{margin-left:auto;display:flex;gap:9px}
+  .qbtn{border:1px solid #9db8f0;color:#1f3fa8;background:#f4f8ff;border-radius:16px;padding:5px 13px;font-size:13px;font-weight:700;white-space:nowrap}
+
+  .body{display:flex;height:732px}
+  .side{width:292px;border-right:1px solid #e3e7ee;padding:16px 20px;background:#fff;position:relative;overflow:hidden}
+  .in-btn{background:#20309b;color:#fff;border-radius:9px;text-align:center;font-weight:800;font-size:22px;padding:13px 0;letter-spacing:.06em}
+  .userbox{margin-top:14px;border:1px solid #dfe4ec;border-radius:9px;padding:13px 14px;font-size:13px;color:#404a5c}
+  .userbox .r{display:flex;justify-content:space-between;margin-bottom:7px}
+  .userbox .r b{color:#1c2430}
+  .logout{display:block;width:96px;margin:9px auto 0;background:#1f3fa8;color:#fff;border-radius:7px;text-align:center;padding:6px 0;font-size:13px;font-weight:700}
+  .selbox{margin-top:15px;border:1px solid #cfd6e2;border-radius:7px;padding:9px 12px;font-size:14px;color:#586274;display:flex;justify-content:space-between;align-items:center}
+  .sidebtn{margin-top:11px;border:1px solid #cfd6e2;border-radius:7px;padding:11px 0;text-align:center;font-size:15px;font-weight:700;color:#2b3240;background:#fff}
+  .sidebtn.primary{background:#2563eb;border-color:#2563eb;color:#fff}
+  .folders{margin-top:16px;font-size:14px;color:#404a5c}
+  .folders .f{padding:6px 4px;display:flex;align-items:center;gap:7px}
+  .folders .lbl{background:#eef2fb;border-radius:6px;padding:8px 10px;margin:5px 0;display:flex;justify-content:space-between;align-items:center}
+  .badge-n{background:#e11d48;color:#fff;border-radius:999px;font-size:11px;padding:2px 7px;font-weight:700}
+  .fab{position:absolute;left:20px;bottom:18px;width:62px;height:62px;border-radius:50%;background:#f0384f;color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(240,56,79,.4)}
+
+  .content{flex:1;padding:0 26px;overflow:hidden}
+  .crumb{background:#f5f7fa;border:1px solid #e6eaf1;border-radius:6px;margin:12px 0 14px;padding:8px 14px;font-size:13px;color:#5c6678}
+  .crumb b{color:#2b3240}
+  .cols{display:flex;gap:26px}
+  .colL{width:58%}
+  .colR{width:42%}
+  h3.t{font-size:20px;font-weight:800;margin:0 0 4px;color:#1c2430}
+  p.help{font-size:13px;color:#7b8494;margin:0 0 11px}
+
+  table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+  table.tbl th{background:#f5f7fa;border:1px solid #dfe4ec;padding:9px;font-weight:700;color:#2b3240;text-align:center}
+  table.tbl td{border:1px solid #dfe4ec;padding:9px;text-align:center;color:#39424f}
+  table.tbl td.l{text-align:left}
+  tr.newrow{background:#fffbe6}
+  tr.hidden-row{display:none}
+  .bx{display:inline-flex;align-items:center;justify-content:center;width:29px;height:24px;border-radius:5px;font-size:12px;color:#fff;margin:0 1px;vertical-align:middle}
+  .bx.w{background:#f0ad4e}.bx.i{background:#31b0d5}.bx.d{background:#e5e9ef;color:#5c6678}.bx.r{background:#e04b4b}
+
+  .toast{background:#dff3e2;border:1px solid #a9dcb4;color:#1f6b34;padding:10px 14px;border-radius:7px;font-size:14px;font-weight:700;margin-bottom:12px;display:none}
+  .toast.show{display:block}
+
+  .alertinfo{background:#e8f2ff;border:1px solid #bcd8ff;border-radius:7px;padding:10px 13px;font-size:13.5px;color:#1a4fa0;margin-bottom:11px;line-height:1.5}
+  .alertinfo a{color:#1d63d8;text-decoration:underline}
+  .fg{margin-bottom:7px}
+  .fg.off{display:none}
+  .fg label{display:block;font-size:14px;font-weight:700;color:#39424f;margin-bottom:4px}
+  .ipt{border:1px solid #cfd6e2;border-radius:5px;height:32px;padding:0 12px;font-size:14px;color:#2b3240;background:#fff;display:flex;align-items:center;position:relative}
+  .ipt.ph{color:#aab2bf}
+  .ipt.focus{border-color:#4c8bf5;box-shadow:0 0 0 3px rgba(76,139,245,.18)}
+  .caret{width:1.5px;height:18px;background:#2b3240;margin-left:1px;opacity:0}
+  .ipt.focus .caret{animation:blink 1s steps(1) infinite}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  .sel{justify-content:space-between}
+  .sel .car{color:#8a93a2;font-size:11px}
+  .hint{font-size:12px;color:#8a93a2;margin-top:3px}
+  .oauthline{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:#8a93a2}
+  .bdg{border-radius:4px;padding:3px 8px;font-size:11.5px;font-weight:700;color:#fff}
+  .bdg.warn{background:#e0a800}.bdg.ok{background:#2e9e4f}
+  .minibtn{border:1px solid #cfd6e2;border-radius:5px;padding:3px 9px;font-size:12px;font-weight:700;color:#2b3240;background:#fff}
+  .row2{display:flex;gap:12px}
+  .row2 .a{flex:1}.row2 .b{width:120px}
+  .chk{display:flex;align-items:center;gap:8px;font-size:14px;color:#39424f;margin:9px 0 11px}
+  .chkbox{width:16px;height:16px;border:1px solid #b6bfcd;border-radius:3px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff}
+  .chkbox.on{background:#2563eb;border-color:#2563eb}
+  .savebtn{display:inline-block;background:#2563eb;color:#fff;border-radius:6px;padding:9px 22px;font-size:15px;font-weight:700}
+  .cancelbtn{display:none;margin-left:7px;border:1px solid #cfd6e2;border-radius:6px;padding:9px 18px;font-size:15px;font-weight:700;color:#2b3240}
+  .cancelbtn.show{display:inline-block}
+
+  .dd{position:absolute;left:0;right:0;top:34px;background:#fff;border:1px solid #cfd6e2;border-radius:6px;box-shadow:0 8px 22px rgba(20,30,50,.16);z-index:40;overflow:hidden;display:none}
+  .dd.open{display:block}
+  .dd div{padding:9px 12px;font-size:14px;color:#2b3240}
+  .dd div.on{background:#2563eb;color:#fff}
+
+  .hl{animation:hlp 1.5s ease}
+  @keyframes hlp{0%{box-shadow:0 0 0 0 rgba(37,99,235,.55);background:#eaf2ff}60%{box-shadow:0 0 0 8px rgba(37,99,235,0);background:#eaf2ff}100%{background:#fff}}
+
+  .modal{position:absolute;inset:0;background:rgba(15,23,42,.35);display:none;align-items:flex-start;justify-content:center;z-index:60}
+  .modal.show{display:flex}
+  .modal .box{margin-top:120px;background:#fff;border-radius:10px;min-width:420px;box-shadow:0 20px 50px rgba(0,0,0,.3);overflow:hidden}
+  .modal .bh{padding:14px 18px;font-size:13px;color:#6b7484;border-bottom:1px solid #eceff4}
+  .modal .bb{padding:24px 18px;font-size:17px;font-weight:700;color:#1c2430;text-align:center}
+  .modal .bf{padding:0 18px 18px;text-align:center}
+  .modal .ok{display:inline-block;background:#2563eb;color:#fff;border-radius:6px;padding:8px 26px;font-size:14px;font-weight:700}
+
+  /* 외부 인증 창으로 넘어가는 구간은 재현하지 않고 안내 카드로 대체한다 */
+  .away{position:absolute;inset:0;background:rgba(12,18,32,.72);display:none;align-items:center;justify-content:center;z-index:80}
+  .away.show{display:flex}
+  .away .card2{background:#fff;border-radius:12px;width:660px;padding:30px 34px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .away .k{font-size:13px;font-weight:700;letter-spacing:.16em;color:#8a93a2;margin-bottom:10px}
+  .away .h2{font-size:26px;font-weight:800;color:#1c2430;margin-bottom:14px;letter-spacing:-.02em}
+  .away ol{margin:0;padding-left:20px;font-size:16px;line-height:2;color:#39424f}
+  .away .foot{margin-top:16px;font-size:13.5px;color:#7b8494;border-top:1px solid #eceff4;padding-top:12px}
+
+  .cursor{position:absolute;left:0;top:0;width:26px;height:26px;z-index:90;pointer-events:none;transition:transform 750ms cubic-bezier(.4,.05,.2,1);filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+  .ripple{position:absolute;width:16px;height:16px;border-radius:50%;background:rgba(37,99,235,.45);border:2px solid #2563eb;z-index:89;opacity:0;pointer-events:none}
+  .ripple.go{animation:rip .55s ease-out}
+  @keyframes rip{0%{opacity:1;transform:scale(.3)}100%{opacity:0;transform:scale(3.6)}}
+
+  .spot{position:absolute;border:3px solid #f59e0b;border-radius:8px;box-shadow:0 0 0 9999px rgba(12,18,32,.42);z-index:70;opacity:0;transition:opacity .35s ease;pointer-events:none}
+  .spot.show{opacity:1}
+
+  .card{position:absolute;inset:0;background:linear-gradient(140deg,#16225c,#1f3fa8 55%,#2563eb);color:#fff;z-index:120;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;opacity:0;transition:.5s;pointer-events:none}
+  .card.show{opacity:1}
+  .card .k{font-size:15px;letter-spacing:.35em;opacity:.8}
+  .card .h{font-size:54px;font-weight:800;letter-spacing:-.03em}
+  .card .s{font-size:20px;opacity:.9}
+  .card .pill{margin-top:6px;border:1px solid rgba(255,255,255,.5);border-radius:999px;padding:8px 20px;font-size:17px;font-weight:700}
+  .card ol{font-size:19px;line-height:2;opacity:.95;margin:8px 0 0;padding-left:22px;text-align:left}
+
+  .cap{position:absolute;left:0;right:0;bottom:0;height:90px;background:#101828;color:#fff;padding:0 26px;display:flex;align-items:center;gap:16px;z-index:110;transform:translateY(100%);transition:transform .3s}
+  .cap.show{transform:translateY(0)}
+  .cap .n{flex:none;width:38px;height:38px;border-radius:50%;background:#2563eb;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px}
+  .cap .tx{font-size:21px;font-weight:700;letter-spacing:-.01em}
+  .cap .sub{font-size:15px;opacity:.72;margin-left:auto;text-align:right;line-height:1.4;max-width:560px}
+  .prog{position:absolute;left:0;bottom:0;height:4px;background:#2563eb;width:0;z-index:115;transition:width .3s linear}
+
+  .ctl{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .ctl button{font:inherit;font-size:13px;font-weight:700;padding:8px 16px;border-radius:7px;border:1px solid var(--shell-line);background:var(--shell-panel);color:var(--shell-fg);cursor:pointer}
+  .ctl button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .ctl button.p{background:var(--accent);border-color:var(--accent);color:#fff}
+  .ctl .sp{margin-left:auto;font-size:13px;color:var(--shell-muted);font-variant-numeric:tabular-nums}
+  .steps{border-top:1px solid var(--shell-line);padding-top:16px;display:flex;flex-direction:column;gap:12px}
+  .steps h2{font-size:15px;margin:0;letter-spacing:-.01em}
+  .steps ol{margin:0;padding-left:20px;font-size:14px;line-height:1.9;color:var(--shell-muted);max-width:78ch}
+  .steps ol li b{color:var(--shell-fg)}
+  .note{background:var(--shell-panel);border:1px solid var(--shell-line);border-left:3px solid var(--accent);border-radius:6px;padding:12px 14px;font-size:13.5px;line-height:1.75;color:var(--shell-muted);max-width:78ch}
+  .note b{color:var(--shell-fg)}
+  @media (prefers-reduced-motion: reduce){
+    .cursor{transition:none}
+    .ipt.focus .caret{animation:none;opacity:1}
+    .ripple.go{animation-duration:.01ms}
+  }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <h1>내 메일 계정 추가하기</h1>
+    <span>메일 &rsaquo; 내 계정 · prttour.com 계정은 OAuth2 연결</span>
+    <span class="tag">재생 약 1분</span>
+  </div>
+
+  <div class="screenbox">
+  <div class="screen" id="screen">
+    <div class="stage" id="stage">
+
+      <div class="topbar">
+        <div class="logo">푸른투어 인트라넷</div>
+        <div class="gnb"><b>기초관리</b><b>상품관리</b><b>예약관리</b><b>행사관리</b><b>MIS</b><b>정산관리</b><b>인사관리</b><b>게시판관리</b><b>컨텐츠관리</b><b>고객관리</b></div>
+        <div class="qbtns"><div class="qbtn">스마트등록</div><div class="qbtn">메모등록</div><div class="qbtn">통합예약검색</div></div>
+      </div>
+
+      <div class="body">
+        <div class="side">
+          <div class="in-btn">IN</div>
+          <div class="userbox">
+            <div class="r"><span>로그인 사용자</span><b>관리자</b></div>
+            <div class="r"><span>시간</span><b>2026-08-16</b></div>
+            <div class="logout">로그아웃</div>
+          </div>
+          <div class="selbox"><span>local@prttour.com</span><span style="color:#8a93a2">▾</span></div>
+          <div class="sidebtn" id="menuMy">👤 내 계정</div>
+          <div class="sidebtn">⚙ 계정 관리</div>
+          <div class="sidebtn primary">메일 쓰기</div>
+          <div class="folders">
+            <div class="f">▸ 기본 폴더</div>
+            <div class="f">▾ 내 라벨 <span style="color:#8a93a2">(437)</span></div>
+            <div class="lbl"><span>0 문정숙이사</span></div>
+            <div class="lbl"><span>1 홍민정</span><span class="badge-n">2</span></div>
+            <div class="lbl"><span>2 라일라</span><span class="badge-n">5</span></div>
+          </div>
+          <div class="fab">+</div>
+        </div>
+
+        <div class="content">
+          <div class="crumb">🏠 &nbsp;&rsaquo;&nbsp; 메일 &nbsp;&rsaquo;&nbsp; <b>내 계정</b></div>
+          <div class="cols">
+            <div class="colL">
+              <div class="toast" id="toast">✔ 내 계정을 추가했습니다.</div>
+              <h3 class="t">내 메일 계정</h3>
+              <p class="help">본인 이메일 계정을 직접 등록·수정할 수 있습니다. 공통 이메일은 관리자가 지정합니다.</p>
+              <table class="tbl">
+                <thead><tr><th>이메일</th><th>표시명</th><th>IMAP</th><th>상태</th><th style="width:158px">관리</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td class="l">office@prttour.com</td><td>사무실</td><td>imap.gmail.com:993</td><td>사용</td>
+                    <td><span class="bx w">✎</span><span class="bx i"><i class="fa fa-plug"></i></span><span class="bx d">📁</span><span class="bx r">🗑</span></td>
+                  </tr>
+                  <tr class="hidden-row" id="rowNew">
+                    <td class="l">hong@prttour.com</td><td>홍길동</td><td>imap.gmail.com:993</td><td>사용</td>
+                    <td><span class="bx w" id="btnEdit">✎</span><span class="bx i" id="btnTest"><i class="fa fa-plug"></i></span><span class="bx d">📁</span><span class="bx r">🗑</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="colR">
+              <h3 class="t" id="formTitle">내 계정 추가</h3>
+              <div class="alertinfo" id="apppwHelp">
+                <span>Gmail은 2단계 인증 후 발급한 앱 비밀번호를 입력하세요.</span>
+                <a href="#">앱 비밀번호 발급 ↗</a>
+              </div>
+
+              <div class="fg"><label>이메일</label><div class="ipt" id="fEmail"><span class="v"></span><i class="caret"></i></div></div>
+              <div class="fg"><label>표시명</label><div class="ipt" id="fName"><span class="v"></span><i class="caret"></i></div></div>
+
+              <div class="fg" style="position:relative">
+                <label>메일 제공자</label>
+                <div class="ipt sel" id="fProvider"><span class="v">Gmail</span><span class="car">▼</span></div>
+                <div class="dd" id="ddProvider"><div class="on">Gmail</div><div>Outlook</div><div>Microsoft 365</div></div>
+                <div class="hint">제공자를 선택하면 아래 IMAP/SMTP 주소가 자동으로 채워집니다.</div>
+              </div>
+
+              <div class="fg" style="position:relative">
+                <label>인증 방식</label>
+                <div class="ipt sel" id="fAuth"><span class="v">앱 비밀번호</span><span class="car">▼</span></div>
+                <div class="dd" id="ddAuth"><div class="on">앱 비밀번호</div><div>OAuth2</div></div>
+              </div>
+
+              <div class="fg off" id="gOauth" style="position:relative">
+                <label>OAuth 제공자</label>
+                <div class="ipt sel" id="fOauth"><span class="v">Google</span><span class="car">▼</span></div>
+                <div class="dd" id="ddOauth"><div class="on">Google</div><div>Microsoft</div></div>
+                <div class="oauthline" id="oauthNew">먼저 저장한 뒤 OAuth 계정 연결을 진행하세요.</div>
+                <div class="oauthline off" id="oauthEdit" style="display:none">
+                  <span class="bdg warn" id="oauthBdg">미연결</span>
+                  <span class="minibtn" id="btnConnect">OAuth 계정 연결</span>
+                </div>
+              </div>
+
+              <div class="row2">
+                <div class="fg a"><label>IMAP host</label><div class="ipt" id="fImapH"><span class="v">imap.gmail.com</span></div></div>
+                <div class="fg b"><label>port</label><div class="ipt" id="fImapP"><span class="v">993</span></div></div>
+              </div>
+              <div class="row2">
+                <div class="fg a"><label>SMTP host</label><div class="ipt" id="fSmtpH"><span class="v">smtp.gmail.com</span></div></div>
+                <div class="fg b"><label>port</label><div class="ipt" id="fSmtpP"><span class="v">587</span></div></div>
+              </div>
+
+              <div class="fg" id="gPw"><label>앱 비밀번호</label><div class="ipt" id="fPw"><span class="v"></span><i class="caret"></i></div></div>
+              <div class="chk" id="fActive"><span class="chkbox on">✔</span> 사용</div>
+              <div><span class="savebtn" id="btnSave">💾 저장</span><span class="cancelbtn" id="btnCancel">취소</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spot" id="spot"></div>
+      <div class="ripple" id="ripple"></div>
+      <svg class="cursor" id="cursor" viewBox="0 0 24 24"><path d="M4 2l14 9-6.2 1.2L15 20l-2.6 1-3.2-7.4L4 18z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>
+
+      <div class="away" id="away"><div class="card2">
+        <div class="k">외부 인증 화면</div>
+        <div class="h2">Google 계정 인증 창으로 이동합니다</div>
+        <ol>
+          <li>본인의 <b>prttour.com</b> 계정을 선택합니다</li>
+          <li>메일 읽기·보내기 권한 요청에 <b>허용</b>을 누릅니다</li>
+        </ol>
+        <div class="foot">허용하면 인트라넷 <b>내 계정</b> 화면으로 자동으로 돌아옵니다. 비밀번호는 인트라넷에 저장되지 않습니다.</div>
+      </div></div>
+
+      <div class="modal" id="modal"><div class="box">
+        <div class="bh">myprt.biz 내용:</div>
+        <div class="bb">연결 성공</div>
+        <div class="bf"><span class="ok">확인</span></div>
+      </div></div>
+
+      <div class="cap" id="cap"><div class="n" id="capN">1</div><div class="tx" id="capT"></div><div class="sub" id="capS"></div></div>
+      <div class="prog" id="prog"></div>
+
+      <div class="card show" id="intro">
+        <div class="k">푸른투어 인트라넷 · 메일</div>
+        <div class="h">내 메일 계정 추가하기</div>
+        <div class="s">메일 &rsaquo; 내 계정 화면</div>
+        <div class="pill">prttour.com 주소는 인증 방식 = OAuth2</div>
+      </div>
+      <div class="card" id="outro">
+        <div class="h" style="font-size:42px">연결 완료</div>
+        <ol>
+          <li>이메일 · 표시명 입력</li>
+          <li>메일 제공자 Gmail → <b>인증 방식 OAuth2</b> · OAuth 제공자 Google</li>
+          <li>저장 → 목록에서 ✎ 수정 → <b>OAuth 계정 연결</b></li>
+          <li>[연결됨] 확인 후 <i class="fa fa-plug"></i> 연결 테스트</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="ctl">
+    <button class="p" id="btnPlay">⏸ 일시정지</button>
+    <button id="btnReplay">↻ 처음부터</button>
+    <button id="btnSpeed">속도 1×</button>
+    <span class="sp" id="tick">00:00</span>
+  </div>
+
+  <div class="steps">
+    <h2>따라 하기 요약 — prttour.com 계정</h2>
+    <ol>
+      <li>왼쪽 메뉴 <b>내 계정</b> → 오른쪽 <b>내 계정 추가</b> 폼</li>
+      <li><b>이메일</b>·<b>표시명</b> 입력 (표시명은 받는 사람에게 보이는 이름)</li>
+      <li><b>메일 제공자</b>는 <b>Gmail</b> — prttour.com은 Google Workspace라 IMAP/SMTP가 Gmail 주소로 자동 입력됩니다</li>
+      <li><b>인증 방식</b>을 <b>OAuth2</b>로 바꿉니다. 앱 비밀번호 칸이 사라지고 <b>OAuth 제공자</b> 칸이 나타납니다 → <b>Google</b></li>
+      <li><b>사용</b> 체크 후 <b>저장</b>. 신규 등록은 저장해야 연결 버튼이 생깁니다</li>
+      <li>목록에서 방금 만든 계정의 <b>✎</b>를 눌러 수정 폼을 열고 <b>OAuth 계정 연결</b> 클릭</li>
+      <li>Google 인증 창에서 계정 선택 → <b>허용</b> → 돌아오면 배지가 <b>연결됨</b>으로 바뀝니다</li>
+      <li>마지막으로 <b><i class="fa fa-plug"></i></b> 버튼을 눌러 연결 테스트</li>
+    </ol>
+    <div class="note">
+      <b>prttour.com 주소는 앱 비밀번호를 쓰지 않습니다.</b> 회사 Google Workspace 계정이라 앱 비밀번호 발급이 막혀 있고, 인증 방식을 앱 비밀번호로 두면 연결 테스트가 실패합니다. 반드시 <b>OAuth2 + Google</b>로 등록하세요.<br>
+      <b>앱 비밀번호 방식은 개인 Gmail·Outlook 계정을 추가할 때만</b> 사용합니다. 그때는 2단계 인증을 켜고 발급한 16자리를 띄어쓰기 없이 붙여넣습니다.<br>
+      <b>연결이 끊기면</b> 다시 <b>✎ 수정 → OAuth 계정 연결</b>만 하면 됩니다. 계정을 지웠다 다시 만들 필요는 없습니다.<br>
+      <b>내 계정은 본인만 관리합니다.</b> 등록·수정·삭제 모두 본인 소유 계정에만 적용되고, 공통 이메일은 관리자가 <b>계정 관리</b>에서 지정합니다.
+    </div>
+    <p style="font-size:12.5px;color:var(--shell-muted);margin:0">화면은 실제 <b style="color:var(--shell-fg);font-weight:700">메일 &rsaquo; 내 계정</b> 페이지를 재현한 데모입니다. 입력값은 예시이며 실제로 저장되지 않습니다. Google 인증 창 구간은 재현하지 않고 안내 카드로 대신했습니다.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var cursor=$('cursor'), ripple=$('ripple'), spot=$('spot'), cap=$('cap'), capN=$('capN'), capT=$('capT'), capS=$('capS');
+  var stage=$('stage');
+
+  var paused=false, speed=1, runId=0, t0=0, TOTAL=58000;
+
+  function fit(){ stage.style.transform='scale('+($('screen').clientWidth/1600)+')'; }
+  fit();
+  if(window.ResizeObserver){ new ResizeObserver(fit).observe($('screen')); }
+  window.addEventListener('resize', fit);
+
+  function sleep(ms){
+    return new Promise(function(res){
+      var left=ms/speed, last=Date.now();
+      (function step(){
+        var now=Date.now();
+        if(!paused) left-=(now-last);
+        last=now;
+        if(left<=0) return res();
+        requestAnimationFrame(step);
+      })();
+    });
+  }
+  function guard(id){ if(id!==runId) throw 'abort'; }
+
+  function scale(){ return stage.getBoundingClientRect().width/1600; }
+  function center(el){
+    var r=el.getBoundingClientRect(), s=stage.getBoundingClientRect(), sc=scale();
+    return {x:(r.left-s.left)/sc + r.width/sc/2, y:(r.top-s.top)/sc + r.height/sc/2};
+  }
+  function box(el){
+    var r=el.getBoundingClientRect(), s=stage.getBoundingClientRect(), sc=scale();
+    return {x:(r.left-s.left)/sc, y:(r.top-s.top)/sc, w:r.width/sc, h:r.height/sc};
+  }
+  function moveTo(el,dx,dy){
+    var c=center(el);
+    cursor.style.transform='translate('+(c.x+(dx||0))+'px,'+(c.y+(dy||0))+'px)';
+    return sleep(800);
+  }
+  function clickFx(){
+    var m=cursor.style.transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+    if(m){ ripple.style.left=(parseFloat(m[1])-8)+'px'; ripple.style.top=(parseFloat(m[2])-8)+'px'; }
+    ripple.classList.remove('go'); void ripple.offsetWidth; ripple.classList.add('go');
+    return sleep(320);
+  }
+  function say(n,txt,sub){ capN.textContent=n; capT.textContent=txt; capS.textContent=sub||''; cap.classList.add('show'); }
+  function light(el,pad){
+    if(!el){ spot.classList.remove('show'); return; }
+    var b=box(el), p=pad===undefined?8:pad;
+    spot.style.left=(b.x-p)+'px'; spot.style.top=(b.y-p)+'px';
+    spot.style.width=(b.w+p*2)+'px'; spot.style.height=(b.h+p*2)+'px';
+    spot.classList.add('show');
+  }
+  async function type(fieldId,text,per){
+    var f=$(fieldId), v=f.querySelector('.v');
+    f.classList.add('focus'); v.textContent='';
+    for(var i=0;i<text.length;i++){ v.textContent+=text[i]; await sleep(per||62); }
+    await sleep(240); f.classList.remove('focus');
+  }
+  function flash(ids){
+    ids.forEach(function(id){ var e=$(id); e.classList.remove('hl'); void e.offsetWidth; e.classList.add('hl'); });
+  }
+
+  async function run(){
+    var id=++runId; t0=Date.now();
+    ['fEmail','fName','fPw'].forEach(function(k){ $(k).querySelector('.v').textContent=''; $(k).classList.remove('focus'); });
+    $('fAuth').querySelector('.v').textContent='앱 비밀번호';
+    $('formTitle').textContent='내 계정 추가';
+    $('gOauth').classList.add('off'); $('gPw').classList.remove('off');
+    $('oauthNew').style.display=''; $('oauthEdit').style.display='none';
+    $('oauthBdg').className='bdg warn'; $('oauthBdg').textContent='미연결';
+    $('btnCancel').classList.remove('show');
+    $('rowNew').classList.add('hidden-row');
+    $('toast').classList.remove('show'); $('modal').classList.remove('show'); $('away').classList.remove('show');
+    $('ddProvider').classList.remove('open'); $('ddAuth').classList.remove('open'); $('ddOauth').classList.remove('open');
+    spot.classList.remove('show'); cap.classList.remove('show');
+    $('outro').classList.remove('show'); $('intro').classList.add('show');
+    cursor.style.transition='none'; cursor.style.transform='translate(1100px,760px)';
+    void cursor.offsetWidth; cursor.style.transition='';
+
+    try{
+      await sleep(3000); guard(id);
+      $('intro').classList.remove('show');
+      await sleep(500); guard(id);
+
+      say(1,'메일 → 내 계정 화면 열기','왼쪽 메뉴에서 “내 계정”을 누릅니다.');
+      light($('menuMy'),6);
+      await moveTo($('menuMy')); guard(id); await clickFx(); guard(id);
+      await sleep(800); guard(id); light(null);
+
+      say(2,'오른쪽이 “내 계정 추가” 폼','왼쪽은 등록된 계정 목록, 오른쪽에서 새 계정을 추가합니다.');
+      light($('formTitle').closest('.colR'),10);
+      await sleep(2200); guard(id); light(null);
+
+      say(3,'이메일 입력','회사 계정인 prttour.com 주소를 입력합니다.');
+      await moveTo($('fEmail')); guard(id); await clickFx(); guard(id);
+      await type('fEmail','hong@prttour.com'); guard(id);
+
+      say(4,'표시명 입력','받는 사람에게 보이는 이름입니다.');
+      await moveTo($('fName')); guard(id); await clickFx(); guard(id);
+      await type('fName','홍길동',85); guard(id);
+
+      say(5,'메일 제공자 = Gmail','prttour.com은 Google Workspace라 Gmail을 고릅니다. IMAP/SMTP가 자동으로 채워집니다.');
+      await moveTo($('fProvider')); guard(id); await clickFx(); guard(id);
+      $('ddProvider').classList.add('open');
+      await sleep(1000); guard(id);
+      await moveTo($('ddProvider').children[0]); guard(id); await clickFx(); guard(id);
+      $('ddProvider').classList.remove('open');
+      await sleep(200); guard(id);
+      flash(['fImapH','fImapP','fSmtpH','fSmtpP']);
+      await sleep(2000); guard(id);
+
+      say(6,'인증 방식을 OAuth2로 변경','prttour.com 주소는 반드시 OAuth2입니다. 앱 비밀번호로 두면 연결 테스트가 실패합니다.');
+      light($('fAuth'),7);
+      await moveTo($('fAuth')); guard(id); await clickFx(); guard(id);
+      $('ddAuth').classList.add('open');
+      await sleep(1500); guard(id);
+      await moveTo($('ddAuth').children[1]); guard(id); await clickFx(); guard(id);
+      $('ddAuth').classList.remove('open');
+      $('fAuth').querySelector('.v').textContent='OAuth2';
+      await sleep(500); guard(id); light(null);
+
+      say(7,'앱 비밀번호 칸이 사라집니다','비밀번호는 입력하지 않습니다. 위쪽 “앱 비밀번호 발급” 안내문은 무시하세요.');
+      $('gPw').classList.add('off'); $('gOauth').classList.remove('off');
+      await sleep(500); guard(id);
+      flash(['fOauth']);
+      await sleep(2000); guard(id);
+
+      say(8,'OAuth 제공자 = Google','회사 계정은 Google을 고릅니다.');
+      await moveTo($('fOauth')); guard(id); await clickFx(); guard(id);
+      $('ddOauth').classList.add('open');
+      await sleep(1100); guard(id);
+      await moveTo($('ddOauth').children[0]); guard(id); await clickFx(); guard(id);
+      $('ddOauth').classList.remove('open');
+      await sleep(400); guard(id);
+
+      say(9,'먼저 저장합니다','신규 등록은 저장해야 연결 버튼이 생깁니다.');
+      light($('oauthNew'),5);
+      await sleep(1800); guard(id); light(null);
+      await moveTo($('fActive')); guard(id);
+      flash(['fActive']);
+      await sleep(1000); guard(id);
+      await moveTo($('btnSave')); guard(id); await clickFx(); guard(id);
+      await sleep(500); guard(id);
+      $('toast').classList.add('show');
+      $('rowNew').classList.remove('hidden-row');
+      $('rowNew').classList.add('newrow');
+      await sleep(2000); guard(id);
+      $('rowNew').classList.remove('newrow');
+
+      say(10,'목록에서 ✎ 수정 클릭','방금 저장한 계정을 다시 열어 연결을 진행합니다.');
+      light($('rowNew'),4);
+      await moveTo($('btnEdit')); guard(id); await clickFx(); guard(id);
+      await sleep(700); guard(id); light(null);
+      $('formTitle').textContent='내 계정 수정';
+      $('btnCancel').classList.add('show');
+      $('oauthNew').style.display='none'; $('oauthEdit').style.display='';
+      $('toast').classList.remove('show');
+      await sleep(1400); guard(id);
+
+      say(11,'“미연결” 옆의 OAuth 계정 연결','이 버튼을 눌러야 실제 인증이 시작됩니다.');
+      light($('oauthEdit'),6);
+      await moveTo($('btnConnect')); guard(id); await clickFx(); guard(id);
+      await sleep(700); guard(id); light(null);
+
+      say(12,'Google 인증 창에서 허용','계정을 선택하고 권한 요청에 허용을 누릅니다.');
+      $('away').classList.add('show');
+      await sleep(4600); guard(id);
+      $('away').classList.remove('show');
+
+      say(13,'배지가 “연결됨”으로 바뀝니다','여기까지 오면 등록이 끝난 것입니다.');
+      $('oauthBdg').className='bdg ok'; $('oauthBdg').textContent='연결됨';
+      light($('oauthEdit'),6);
+      await sleep(2600); guard(id); light(null);
+
+      say(14,'연결 테스트 버튼 클릭','마지막으로 IMAP 접속이 되는지 확인합니다.');
+      await moveTo($('btnTest')); guard(id); await clickFx(); guard(id);
+      await sleep(800); guard(id);
+      $('modal').classList.add('show');
+      await sleep(2600); guard(id);
+      $('modal').classList.remove('show');
+      await sleep(600); guard(id);
+
+      cap.classList.remove('show');
+      $('outro').classList.add('show');
+      await sleep(4200); guard(id);
+      window.__demoDone=true;
+    }catch(e){ if(e!=='abort') throw e; }
+  }
+
+  setInterval(function(){
+    if(paused||!t0) return;
+    var el=Date.now()-t0;
+    $('prog').style.width=Math.min(100,el/TOTAL*100)+'%';
+    var s=Math.floor(el/1000);
+    $('tick').textContent=('0'+Math.floor(s/60)).slice(-2)+':'+('0'+(s%60)).slice(-2);
+  },200);
+
+  $('btnPlay').onclick=function(){ paused=!paused; this.textContent=paused?'▶ 재생':'⏸ 일시정지'; this.classList.toggle('p',!paused); };
+  $('btnReplay').onclick=function(){ paused=false; $('btnPlay').textContent='⏸ 일시정지'; $('btnPlay').classList.add('p'); window.__demoDone=false; $('prog').style.width='0'; run(); };
+  $('btnSpeed').onclick=function(){ speed=speed===1?1.5:(speed===1.5?2:1); this.textContent='속도 '+speed+'×'; };
+
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    paused = true; $('btnPlay').textContent='▶ 재생'; $('btnPlay').classList.remove('p');
+  }
+  run();
+})();
+</script>
+</body></html>

@@ -100,17 +100,35 @@ if ($account) {
             }
         }
     }
-    // Opening a message marks it read and syncs the flag back to the server.
-    if ($row && (int)$row['is_read'] === 0) {
-        global $MBX_FOLDERS;
-        $sync = new MailboxSync($db, $account, $MBX_FOLDERS);
-        try {
-            $sync->markRead(array((int)$row['id']), true);
-        } catch (Exception $e) {
-            $stmt = mbx_stmt($db, "UPDATE mailbox_messages SET is_read=1 WHERE id=? AND account_id=?", 'ii', array((int)$row['id'], (int)$account['id']));
-            mysqli_stmt_close($stmt);
+    // 이 화면은 대화(thread)의 모든 메일을 한 번에 펼쳐 보여주므로, 열람 시 대화 전체를
+    // 읽음 처리하고 서버 \Seen 플래그까지 맞춘다. 대표 1건만 읽음 처리하면 목록이
+    // 대화 단위로 묶여 있어 형제 메일 때문에 계속 '안읽음'으로 남는다.
+    if ($row) {
+        $unreadIds = array();
+        foreach ($threadRows as $threadRow) {
+            if ((int)$threadRow['is_read'] === 0) {
+                $unreadIds[(int)$threadRow['id']] = (int)$threadRow['id'];
+            }
         }
-        $row['is_read'] = 1;
+        if ((int)$row['is_read'] === 0) {
+            $unreadIds[(int)$row['id']] = (int)$row['id'];
+        }
+        $unreadIds = array_values($unreadIds);
+        if ($unreadIds) {
+            global $MBX_FOLDERS;
+            $sync = new MailboxSync($db, $account, $MBX_FOLDERS);
+            try {
+                $sync->markRead($unreadIds, true);
+            } catch (Exception $e) {
+                $ph = implode(',', array_fill(0, count($unreadIds), '?'));
+                $stmt = mbx_stmt($db, "UPDATE mailbox_messages SET is_read=1 WHERE account_id=? AND id IN (" . $ph . ")", 'i' . str_repeat('i', count($unreadIds)), array_merge(array((int)$account['id']), $unreadIds));
+                mysqli_stmt_close($stmt);
+            }
+            $row['is_read'] = 1;
+            foreach ($threadRows as $k => $threadRow) {
+                $threadRows[$k]['is_read'] = 1;
+            }
+        }
     }
     if ($row) {
         $attachments = mbx_fetch_all_stmt(mbx_stmt($db, "SELECT * FROM mailbox_attachments WHERE msg_id=? ORDER BY id ASC", 'i', array((int)$row['id'])));

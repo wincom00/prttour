@@ -14,10 +14,9 @@
 	$totroom = getReserveInfoRoom($s_code,$stdate);
 	$totbal = getReserveInfoBalSS($s_code,$stdate);
 	$totsal = getReserveInfoSal($s_code,$stdate);
-	$carinfo = getbusInfo($s_code,$stdate);
-	$g_dbinfo1 = getguideInfor($carinfo['sub_eCode']);
-	$g_dbinfo = getinfo_dbMemberg($g_dbinfo1['guide_id']);
-	$g_dbinfo2 = getinfo_dbMemberg($g_dbinfo1['sguide_id']);
+	// 행사 단위 가이드 조회는 제거했다. getbusInfo() 는 예약번호(reserveCode)가 있어야
+	// 하고 반환값도 tour_car 행이 아니라 "메인가이드@부가이드" 문자열이라, 페이지
+	// 상단에서는 조회할 수 없다. 소비처였던 '가이드/부가이드' 헤더 행도 주석 상태다.
 	//$picStr  =bal getPicGr2($s_code,$stdate);
 	function custlist() {
              global $dbConn,$p_code,$gid,$s_code,$stdate,$prodInfo;
@@ -56,10 +55,11 @@
 				}
 				
 				
+				// getbusInfo() 는 tour_car 행이 아니라 "메인가이드@부가이드" 문자열을 반환한다.
+				// (guide_assign_customer.php / guide_assign_customer3.php 와 동일한 사용법)
 				$carinfo = getbusInfo($s_code,$stdate,$row1['reserveCode']);
-				$g_dbinfo1 = getguideInfor($carinfo['grand_eCode'],$carinfo['sub_eCode']);
-				$g_dbinfo = getinfo_dbMemberg($g_dbinfo1['guide_id']);
-				$g_dbinfo2 = getinfo_dbMemberg($g_dbinfo1['sguide_id']);
+				$carinfo = implode('@',array_unique(explode('@',(string)$carinfo)));
+				$guidenm = trim(str_replace('@','/',trim($carinfo,'@')),'/');
 				
 				$reInfo = getReserveInfo($row1['reserveCode']);
 				$tinfo = getTourInfo2($s_code,$row1['stDate']);
@@ -112,7 +112,7 @@
 							  <td>$picnum</td>
 							  <td>$rest</td>
 							  <td >$sign {$reInfo['last_bal']}</td>
-							  <td >{$g_dbinfo['kor_name']}/{$g_dbinfo2['kor_name']}</td>
+							  <td >{$guidenm}</td>
 							  <td >{$mdbinfo['kor_name']}</td>
 							  <td >$rein $tin $rein2</td>
 							  

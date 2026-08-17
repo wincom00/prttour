@@ -219,7 +219,7 @@ window.mbxInboxRefresh = function(opts){
     $.each(keepSelected, function(_, id){
       $('.mailbox-list .chk[value="' + id + '"]').prop('checked', true);
     });
-    mbxListUpdateUnreadBadge(parseInt(r.unread_inbox, 10) || 0);
+    mbxListUpdateUnreadBadge(r.unread);
     mbxFormatListSubjects();
     refreshButtons();
     $table.find('.mbx-row').each(function(){
@@ -256,20 +256,9 @@ function mbxListNewCount(r){
   }
   return n;
 }
-function mbxListUpdateUnreadBadge(n){
-  var $links = $('.mbx-sidebar a').filter(function(){
-    return String($(this).attr('href') || '').indexOf('folder=inbox') !== -1;
-  });
-  $links.each(function(){
-    var $link = $(this);
-    var $badge = $link.find('.badge-unread');
-    if(n > 0){
-      if(!$badge.length){ $badge = $('<span class="badge badge-unread"></span>').appendTo($link); }
-      $badge.text(n);
-    } else {
-      $badge.remove();
-    }
-  });
+// 폴더별 안읽음 뱃지 갱신은 사이드바(plugin.php)가 심어 둔 공용 함수에 위임한다.
+function mbxListUpdateUnreadBadge(unreadMap){
+  if(window.mbxUpdateFolderBadges){ window.mbxUpdateFolderBadges(unreadMap); }
 }
 function mbxListAutoSync(manual){
   if(mbxListAutoSyncing || mbxListRefreshing || !mbxListSyncUrl){ return; }
@@ -287,7 +276,7 @@ function mbxListAutoSync(manual){
     var unread = parseInt(r.unread_inbox, 10) || 0;
     var newCount = mbxListNewCount(r);
     mbxListLastUnread = unread;
-    mbxListUpdateUnreadBadge(unread);
+    mbxListUpdateUnreadBadge(r.unread);
     window.mbxInboxRefresh({
       response: r,
       toast: newCount > 0 && window.mbxToast ? '새 메일 ' + newCount + '통이 도착했습니다.' : ''

@@ -52,10 +52,6 @@
 					$picnum = getPicSub2($row1['reserveCode'],$s_code,$stdate);
 				}
 				
-				$carinfo = getbusInfo($s_code,$stdate,$row1['reserveCode']);
-				$g_dbinfo1 = getguideInfor($carinfo['sub_eCode'],$carinfo['bus_num']);
-				$g_dbinfo = getinfo_dbMemberg($g_dbinfo1['guide_id']);
-				$g_dbinfo2 = getinfo_dbMemberg($g_dbinfo1['sguide_id']);
 
 				
 				$reInfo = getReserveInfo($row1['reserveCode']);

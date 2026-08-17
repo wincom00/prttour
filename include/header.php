@@ -78,7 +78,7 @@
 		<!-- purun css -->
 		    <link rel="stylesheet" href="/css/calc.css?v=1.2" />
 			<link rel="stylesheet" href="/css/purun.css?sid=20260324-available-date" />
-			<link rel="stylesheet" href="/css/travelerp-admin-theme.css?v=20260311" />
+			<link rel="stylesheet" href="/css/travelerp-admin-theme.css?v=20260815" />
 		<!-- favicon -->
             <link rel="apple-touch-icon" sizes="180x180" href="/img/favi/apple-touch-icon.png">
 			<link rel="icon" type="image/png" sizes="32x32" href="/img/favi/favicon-32x32.png">
