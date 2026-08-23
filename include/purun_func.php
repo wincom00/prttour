@@ -984,8 +984,14 @@
 			}
 			$qry1 = "select * from bus_list where 1=1   order by bus_team asc";
 			$rst1 = mysql_query($qry1);
-			
+
+			// 같은 차량ID가 여러 업체에 등록돼 있어도 option value(bus_id)가 같아서
+			// 어느 것을 골라도 저장값이 동일하다. (선택 표시도 중복으로 찍힌다)
+			// DB는 그대로 두고 목록에만 처음 한 건씩 보여준다.
+			$seen = array();
 			while($row1 = mysql_fetch_assoc($rst1)) {
+				if (isset($seen[$row1['bus_id']])) continue;
+				$seen[$row1['bus_id']] = true;
 				$comp=codebaseName($row1['bus_team']);
 				if($gid == $row1['bus_id'])
 				{
