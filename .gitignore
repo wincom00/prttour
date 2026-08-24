@@ -55,6 +55,19 @@ inc_insert_reserve1*.php
 inc_insert_reservet.php
 index_*.php
 comp_reset1.php
+
+# 위 패턴에 걸렸지만 실제로 다른 파일에서 include/링크되는 현역 파일 — 추적 유지
+!guide_assign_customer.php
+!guide_assign_customer1.php
+!guide_assign_customer3.php
+!guide_assign_customer6.php
+!guide_assign_current_state.php
+!comp_reset1.php
+!inc_insert_reserve1.php
+!base_reservation_mt.php
+!sc_local1.php
+!include/header_n.php
+!img/include/header_n.php
 login_old.php
 total_reservation_*.php
 employee_cal_list[0-9]*.php
