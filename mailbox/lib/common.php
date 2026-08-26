@@ -589,6 +589,17 @@ if (!defined('MBX_COMMON_LOADED')) {
         return $rows;
     }
 
+    // 폴더 목록의 첫 줄이 아니라 항상 받은메일함이 기본이다. inbox 가 목록에 없을 때만 첫 폴더로 넘어간다.
+    function mbx_default_folder_key(array $folderRows)
+    {
+        foreach ($folderRows as $row) {
+            if (isset($row['folder_key']) && (string)$row['folder_key'] === 'inbox') {
+                return 'inbox';
+            }
+        }
+        return isset($folderRows[0]['folder_key']) ? (string)$folderRows[0]['folder_key'] : 'inbox';
+    }
+
     function mbx_account_folders(mysqli $db, $accountId, $visibleOnly = true)
     {
         MailboxSync::ensureTables($db);

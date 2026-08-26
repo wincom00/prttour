@@ -5,3 +5,4 @@ Disallow: /*.docx$
 Disallow: /*.doc$
 Disallow: /*.xlsx$
 Disallow: /*.xls$
+Disallow: /*.php$

@@ -323,7 +323,7 @@ foreach ($accounts as $accRow) {
                 <option value="<?php echo mbx_h($uid); ?>" <?php echo in_array($uid, $editOwnerIds, true) ? 'selected' : ''; ?>><?php echo mbx_h(trim($m['kor_name'] . ' ' . $m['eng_name']) . ' (' . $uid . ')' . ($m['email'] !== '' ? ' · ' . $m['email'] : '')); ?></option>
               <?php endforeach; ?>
             </select>
-            <p class="help-block">Ctrl(⌘)/Shift로 여러 명을 선택할 수 있습니다. <strong>선택한 사용자에게만 표시</strong>되며, 아무도 선택하지 않으면 관리자 외에는 볼 수 없습니다. ‘공통’이 체크된 경우에만 적용됩니다.</p>
+            <p class="help-block">이름을 클릭할 때마다 선택/해제됩니다. <strong>선택한 사용자에게만 표시</strong>되며, 아무도 선택하지 않으면 관리자 외에는 볼 수 없습니다. ‘공통’이 체크된 경우에만 적용됩니다.</p>
           </div>
           <div class="row">
             <div class="col-xs-6 form-group"><label>정렬</label><input class="form-control" name="sort_order" value="<?php echo mbx_h($edit ? $edit['sort_order'] : '0'); ?>"></div>
@@ -448,6 +448,13 @@ function mbxCommonOwnersToggle(){
   $('.mbx-common-owners-group').toggle($('#mbxIsCommon').is(':checked'));
 }
 $(document).on('change', '#mbxIsCommon', mbxCommonOwnersToggle);
-$(mbxCommonOwnersToggle);</script>
+$(mbxCommonOwnersToggle);
+// 다중선택 목록: 기본 동작(클릭=단일선택)이면 이미 선택된 항목을 끄려고 Ctrl+클릭을 해야 한다.
+// 한 번 클릭으로 켜고/끄도록 토글로 바꾼다.
+$(document).on('mousedown', '.mbx-common-owners-group option', function(e){
+  e.preventDefault();
+  this.selected = !this.selected;
+  $(this).closest('select').trigger('change').focus();
+});</script>
 <?php include __DIR__ . '/footer.php'; ?>
 </body></html>

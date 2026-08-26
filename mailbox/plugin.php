@@ -94,7 +94,7 @@ if (!defined('MBX_PLUGIN_LOADED')) {
             $state['accounts'] = isset($context['accounts']) && is_array($context['accounts']) ? $context['accounts'] : mbx_visible_accounts($db);
             $state['account'] = isset($context['account']) && is_array($context['account']) ? $context['account'] : mbx_current_account($db);
             $state['folders'] = $state['account'] ? mbx_account_folders($db, (int)$state['account']['id'], true) : array();
-            $defaultFolder = isset($state['folders'][0]['folder_key']) ? (string)$state['folders'][0]['folder_key'] : 'inbox';
+            $defaultFolder = mbx_default_folder_key($state['folders']);
             if (isset($context['folder'])) {
                 $state['folder'] = (string)$context['folder'];
             } elseif (isset($_GET['folder'])) {

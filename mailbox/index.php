@@ -15,7 +15,7 @@ MailboxSync::ensureTables($db);
 $accounts = mbx_visible_accounts($db);
 $account = mbx_current_account($db);
 $folderRows = $account ? mbx_account_folders($db, (int)$account['id'], true) : array();
-$defaultFolder = isset($folderRows[0]['folder_key']) ? (string)$folderRows[0]['folder_key'] : 'inbox';
+$defaultFolder = mbx_default_folder_key($folderRows);
 $folder = isset($_GET['folder']) ? (string)$_GET['folder'] : $defaultFolder;
 if (!$account || !mbx_folder_allowed($db, $account, $folder, true)) {
     $folder = $defaultFolder;

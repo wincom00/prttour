@@ -78,7 +78,7 @@ try {
     }
 
     $folderRows = mbx_account_folders($db, (int)$account['id'], true);
-    $defaultFolder = isset($folderRows[0]['folder_key']) ? (string)$folderRows[0]['folder_key'] : 'inbox';
+    $defaultFolder = mbx_default_folder_key($folderRows);
     $folder = isset($_GET['folder']) ? (string)$_GET['folder'] : $defaultFolder;
     if (!mbx_folder_allowed($db, $account, $folder, true)) {
         $folder = $defaultFolder;
