@@ -65,12 +65,24 @@ if (!move_uploaded_file($tmpName, $relativePath)) {
     exit;
 }
 
-// 원격 서버 동기화
-$_rf = remote_detect_folder($relativePath); if ($_rf) remote_sync_file($relativePath, $_rf);
+// 원격 서버 동기화: 실패하면 로컬 파일도 지워서 양쪽 상태를 맞춘다
+$_rf = function_exists("remote_detect_folder") ? remote_detect_folder($relativePath) : null;
+if ($_rf) {
+    $ftpErr = "";
+    if (!remote_sync_file($relativePath, $_rf, $ftpErr)) {
+        error_log("[FTP] " . $ftpErr);
+        @unlink($relativePath);
+        http_response_code(500);
+        echo json_encode(array("error" => "FTP 실패: " . $ftpErr));
+        exit;
+    }
+}
 
+// 본문에 저장되는 URL은 양쪽 서버에서 똑같이 열리도록 대표 도메인 기준으로 반환
 $scheme = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off") ? "https" : "http";
 $host = isset($_SERVER["HTTP_HOST"]) ? $_SERVER["HTTP_HOST"] : "www.myprt.org";
-$absoluteUrl = $scheme . "://" . $host . "/" . $relativePath;
+$localUrl = $scheme . "://" . $host . "/" . $relativePath;
+$absoluteUrl = "https://" . (defined("FTP_PRIMARY_DOMAIN") ? FTP_PRIMARY_DOMAIN : "myprt.org") . "/" . $relativePath;
 
 echo json_encode(array(
     // TinyMCE required field
@@ -79,6 +91,7 @@ echo json_encode(array(
     "fileName" => $filename,
     "uploaded" => 1,
     "url" => $absoluteUrl,
+    "local_url" => $localUrl,
     "width" => "auto"
 ));
 ?>

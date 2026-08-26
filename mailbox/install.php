@@ -420,8 +420,8 @@ function mbx_install_ensure_header_link_patch()
     $text = mbx_install_normalize_newlines($original);
     $changed = false;
 
-    if (strpos($text, 'href="/admin/index.php">파란여행') === false
-        && mbx_install_replace_once($text, 'href="index.php">파란여행', 'href="/admin/index.php">파란여행')) {
+    if (strpos($text, 'href="/admin/index.php">푸른투어') === false
+        && mbx_install_replace_once($text, 'href="index.php">푸른투어', 'href="/admin/index.php">푸른투어')) {
         $changed = true;
     }
     if (strpos($text, 'href="/admin/total_reservation.php"') === false
