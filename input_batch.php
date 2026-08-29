@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
                     'representative_name' => $_POST['representative_name'] ?? ''
                 );
                 
-                $validation = validate	($new_traveler);
+                $validation = validateTravelerData($new_traveler);
                 if (!$validation['valid']) {
                     $response['message'] = $validation['message'];
                 } else {
@@ -2151,10 +2151,8 @@ function saveGroupReservation($group_data, $travelers_data, $partner_id) {
     $dbConn->autocommit(false);
     
     try {
-        sleep(1); // 디버깅: 트랜잭션 시작 시점 확인용 딜레이       
         $grandNum = time() + mt_rand(1, 10000);
         $grand_revNo = 'TU' . date('ymdHis') . mt_rand(1, 9);
-        sleep(1); // 디버깅: 예약번호 생성 시점 확인용 딜레이   
         $current_reserveCode = 'PUR' . date('ymdHis') . mt_rand(1, 1000);
         
         error_log("생성된 예약번호: " . $grand_revNo);
@@ -2305,8 +2303,7 @@ function saveGroupReservation($group_data, $travelers_data, $partner_id) {
         error_log("reserve_info 저장 성공");
         
         // 3. payment_history 초기값 저장
-        $payment_base_rate = number_format((float)$total_amount_from_group_data, 2, '.', '');
-        $payment_text = $dbConn->real_escape_string($payment_base_rate . ' USD');
+        $payment_amount = number_format((float)$total_amount_from_group_data, 2, '.', '');
         $pay_info_init = $dbConn->real_escape_string('결제대상');
 
         $sql_payment_history = "INSERT INTO payment_history (
@@ -2316,8 +2313,8 @@ function saveGroupReservation($group_data, $travelers_data, $partner_id) {
             '{$current_reserveCode}',
             'init',
             '{$pay_info_init}',
-            '{$payment_text}',
-            {$payment_base_rate},
+            {$payment_amount},
+            'USD',
             0.0000,
             'READY',
             '{$partner_id_escaped}',
