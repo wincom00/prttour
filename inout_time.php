@@ -21,10 +21,16 @@
 	$page_scale=$board_page;
 
     
+    // 첫 진입(검색 누르기 전)에는 로그인한 본인을 기본 선택한다.
+    // ($v_info 는 att_log 수정건일 때만 채워지므로 예전의 '기본 선택' 로직은 동작한 적이 없다)
+    if ($mode != "save" && $empid == "") {
+    	$empid = $user_dbinfo['userid'];
+    }
+
     if ($empid == "") {
     	$emp = "";
     } else {
-    	$emp =" && a.userid='".$empid."'";
+    	$emp =" && a.userid='".mysql_real_escape_string($empid)."'";
     }
 
     if ($tmtype  == 1) {
@@ -427,26 +433,23 @@
 							
 							
 												<select name=empid class="form-control">
-													<option value="">ALL
-													<?php 
-														$que = "select *
+													<option value="">ALL</option>
+													<?php
+														// time_yn='Y'(근태 대상) 조건을 걸면 현직자가 한 명도 안 나온다.
+														// 실제 출퇴근 기록이 쌓이는 직원들은 time_yn 이 N/NULL 이고,
+														// Y 로 지정된 22명은 전원 퇴사자다. → 현직 직원 전체를 보여준다.
+														$que = "select userid, kor_name
 																from member_list
-																where division in ('admin') && time_yn = 'Y' && out_yn is null 
+																where division in ('admin') && out_yn is null
 																order by kor_name";
 														$que_rst1 = mysql_query($que);
 
-														while ($que_row1 = mysql_Fetch_assoc($que_rst1)): 
-															if (($v_info['userid'] == $que_row1['userid']) || ($empid == $que_row1['userid'])) {  													
+														while ($que_row1 = mysql_Fetch_assoc($que_rst1)):
 													?>
-														<option value="<?=$que_row1['userid']?>" selected><?=$que_row1['kor_name']?></option>
+														<option value="<?=htmlspecialchars($que_row1['userid'])?>" <?= ($empid == $que_row1['userid']) ? 'selected' : '' ?>><?=htmlspecialchars($que_row1['kor_name'])?></option>
 													<?php
-															} else {
-													?>
-														<option value="<?=$que_row1['userid']?>" ><?=$que_row1['kor_name']?></option>
-													<?php
-															}    	
 														endwhile;
-													?>	
+													?>
 													</select>
 										 </div>
 										</div>

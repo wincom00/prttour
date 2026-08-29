@@ -36,14 +36,17 @@
 			$rst1 = mysql_query($qry1,$dbConn);
 
 			while($row1 = mysql_Fetch_assoc($rst1)){
-			    $v_row=getVStatus($row1['user_id']);
-				$v_st=between($v_row['v_sdate'],$v_row['v_edate']);
-				
-			//	echo $log_cnt[log_cnt]."11"; 
-				if (($v_st == true) && ($v_row['v_sdate']=="V")) { 
+				// member_list 의 아이디 컬럼은 userid 다 (user_id 가 아니라 항상 빈 값이 넘어갔었다).
+				// getVStatus 는 '오늘 휴가중인 승인건'만 돌려주므로 기간 판정을 따로 하지 않는다.
+			    $v_row  = getVStatus($row1['userid']);
+				$v_type = $v_row ? $v_row['v_type'] : '';
+
+				if ($v_type == "V") {
 					$st = '<td align=center bgcolor="ffcccc">휴가</td>';
-                } else  if (($v_st == true) && ($v_row['v_sdate']=="S")){
+                } else if ($v_type == "S"){
 					$st = '<td align=center bgcolor="ffcccc">병가</td>';
+				} else if ($v_type == "O"){
+					$st = '<td align=center bgcolor="ffcccc">무급휴가</td>';
 				} else {
 					$st = '<td align=center>근무</td>';
 				}

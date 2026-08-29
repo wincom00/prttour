@@ -2907,26 +2907,33 @@
 
 	}
 	function between($sdate,$edate){
-		if( time() >= strtotime($sdate) && time() <= strtotime($edate)){
+		// 종료일은 '그 날 하루 전체'를 포함해야 한다.
+		// strtotime('2026-08-27') 은 00:00:00 이라 그대로 비교하면 휴가 마지막 날에 '근무'로 표시됐다.
+		if( time() >= strtotime($sdate) && time() <= strtotime($edate.' 23:59:59')){
 			return true;
 		}else{
 			return false;
 		}
 	}
 
+	// 오늘 기준 '휴가/병가 중'인 승인 신청건을 돌려준다. 해당 없으면 빈 값.
+	// (예전에는 상태·기간과 무관하게 마지막 신청건을 돌려줘서 취소된 건이나
+	//  아직 시작도 안 한 미래 신청건이 '현재 상태'로 표시됐다)
 	function getVStatus($userid){
 
 		global $dbConn;
 
-		$query = "SELECT * FROM emp_vacation WHERE user_id = '$userid' order by wdate desc limit 1";
-
+		$userid = mysql_real_escape_string($userid);
+		$query = "SELECT * FROM emp_vacation
+					WHERE user_id = '$userid'
+					  AND r_status IN ('승인완료','대표님승인완료')
+					  AND curdate() BETWEEN v_sdate AND v_edate
+					ORDER BY v_sdate DESC LIMIT 1";
 
 		$rst1 = mysql_query($query,$dbConn);
 		$data_row = mysql_fetch_assoc($rst1);
-		
-		
 
-		return $data_row; 
+		return $data_row;
 
 	}
 	

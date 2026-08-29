@@ -21,6 +21,7 @@
 			switch ($s) {
 				case '신청중':   return "<span class='label label-warning'>신청중</span>";
 				case '승인완료': return "<span class='label label-success'>승인완료</span>";
+				case '대표님승인완료': return "<span class='label label-success'>대표님승인완료</span>";
 				case '반려':     return "<span class='label label-danger'>반려</span>";
 				case '취소':     return "<span class='label label-default'>취소</span>";
 				default:         return "<span class='label label-default'>".htmlspecialchars($s)."</span>";
@@ -35,10 +36,13 @@
 		return "-";
 	}
 
+	// 승인 계열 상태 (기존 데이터에 '대표님승인완료' 존재 - 승인건과 동일하게 취급)
+	$VM_APPROVED = array('승인완료','대표님승인완료');
+
 	// 휴가 신청건 목록 출력 (신청건 기준)
 	function printVacationRequests(){
 
-			global $division, $pdx, $sub, $empid, $r_st;
+			global $division, $pdx, $sub, $empid, $r_st, $VM_APPROVED;
 
 			$where = " where m.division = 'admin' && m.out_yn is null ";
 
@@ -51,7 +55,8 @@
 				$where .= " && v.r_status = '$f_st' ";
 			}
 
-			$qry1 = "select v.*, m.kor_name, m.phone, m.cell_phone, m.email, m.join_date
+			$qry1 = "select v.*, m.kor_name, m.phone, m.cell_phone, m.email, m.join_date,
+							m.r_vdate, m.r_sdate
 						from emp_vacation v
 						inner join member_list m on m.userid = v.user_id
 						$where
@@ -63,12 +68,14 @@
 			while($row1 = mysql_fetch_assoc($rst1)){
 				$cnt++;
 
-				// 현재 휴가중 여부 (승인완료 + 기간 내)
-				$onLeave = ($row1['r_status'] == '승인완료') && between($row1['v_sdate'], $row1['v_edate']);
+				// 현재 휴가중 여부 (승인 계열 + 기간 내). '대표님승인완료' 도 승인건이다.
+				$onLeave = in_array($row1['r_status'], $VM_APPROVED) && between($row1['v_sdate'], $row1['v_edate']);
 				if ($onLeave && $row1['v_type'] == 'V') {
 					$nowSt = '<span class="label label-danger">휴가중</span>';
 				} else if ($onLeave && $row1['v_type'] == 'S') {
 					$nowSt = '<span class="label label-danger">병가중</span>';
+				} else if ($onLeave && $row1['v_type'] == 'O') {
+					$nowSt = '<span class="label label-danger">무급휴가중</span>';
 				} else {
 					$nowSt = '<span class="label label-default">근무</span>';
 				}
@@ -76,22 +83,42 @@
 				$reg_date = substr($row1['wdate'], 0, 10);
 				$memo = nl2br(htmlspecialchars($row1['r_memo']));
 
+				// 결재 대기건만 결재 버튼. 이미 처리된 건은 조회만 (실수로 재결재 → 이중 차감 방지)
+				if ($row1['r_status'] == '신청중') {
+					$btn = "<a class='btn btn-xs btn-primary' href=emp_vmm.php?division=$division&pdx=$pdx&sub=$sub&id={$row1['seq_no']}>결재하기</a>";
+				} else {
+					$btn = "<a class='btn btn-xs btn-default' href=emp_vmm.php?division=$division&pdx=$pdx&sub=$sub&id={$row1['seq_no']}>보기</a>";
+				}
+
+				// 결재자가 목록에서 바로 판단할 수 있게 신청자의 현재 잔여일수를 함께 보여준다
+				$remain = ($row1['v_type'] == 'S')
+						? number_format((float)$row1['r_sdate'], 1)." <small class='text-muted'>(병가)</small>"
+						: number_format((float)$row1['r_vdate'], 1)." <small class='text-muted'>(휴가)</small>";
+				$over = ($row1['v_type'] == 'S')
+						? ((float)$row1['r_vcnt'] > (float)$row1['r_sdate'])
+						: ($row1['v_type'] == 'V' && (float)$row1['r_vcnt'] > (float)$row1['r_vdate']);
+				$cntTxt = htmlspecialchars($row1['r_vcnt']);
+				if ($over && $row1['r_status'] == '신청중') {
+					$cntTxt = "<span class='text-danger' title='잔여일수 초과'><b>$cntTxt</b> ⚠</span>";
+				}
+
 				echo "<tr>
 					<td class='text-center'>".htmlspecialchars($row1['kor_name'])."</td>
 					<td class='text-center'>".htmlspecialchars($row1['user_id'])."</td>
 					<td class='text-center'>".vmTypeLabel($row1['v_type'])."</td>
 					<td class='text-center'>{$row1['v_sdate']} ~ {$row1['v_edate']}</td>
-					<td class='text-center'>".htmlspecialchars($row1['r_vcnt'])."</td>
+					<td class='text-center'>$cntTxt</td>
+					<td class='text-center'>$remain</td>
 					<td class='text-left' style='white-space:normal;'>$memo</td>
 					<td class='text-center'>$reg_date</td>
 					<td class='text-center'>".vmStatusLabel($row1['r_status'])."</td>
 					<td class='text-center'>$nowSt</td>
-					<td class='text-center'><a class='btn btn-xs btn-primary' href=emp_vmm.php?division=$division&pdx=$pdx&sub=$sub&id={$row1['seq_no']}>결재하기</a></td>
+					<td class='text-center'>$btn</td>
 					</tr>";
 			}
 
 			if ($cnt == 0) {
-				echo "<tr><td colspan='10' class='text-center' style='padding:20px;'>해당 조건의 신청 내역이 없습니다.</td></tr>";
+				echo "<tr><td colspan='11' class='text-center' style='padding:20px;'>해당 조건의 신청 내역이 없습니다.</td></tr>";
 			}
 
 	}
@@ -142,6 +169,7 @@
 										<option value="ALL"     <?= ($r_st=="ALL")     ?'selected':'' ?>>전체</option>
 										<option value="신청중"   <?= ($r_st=="신청중")   ?'selected':'' ?>>신청중</option>
 										<option value="승인완료" <?= ($r_st=="승인완료") ?'selected':'' ?>>승인완료</option>
+										<option value="대표님승인완료" <?= ($r_st=="대표님승인완료") ?'selected':'' ?>>대표님승인완료</option>
 										<option value="반려"     <?= ($r_st=="반려")     ?'selected':'' ?>>반려</option>
 										<option value="취소"     <?= ($r_st=="취소")     ?'selected':'' ?>>취소</option>
 									</select>
@@ -154,16 +182,17 @@
 					  <table id="ctable" class="table table-striped table-bordered table-hover table-condensed mediaTable">
 						<thead>
 							<tr>
-							    <th width=10% class="text-center">직원 명</th>
-								<th width=10% class="text-center">직원 ID</th>
-								<th width=10% class="text-center">신청타입</th>
-								<th width=15% class="text-center">신청기간</th>
+							    <th width=9%  class="text-center">직원 명</th>
+								<th width=9%  class="text-center">직원 ID</th>
+								<th width=9%  class="text-center">신청타입</th>
+								<th width=14% class="text-center">신청기간</th>
 								<th width=5%  class="text-center">일수</th>
-								<th width=20% class="text-center">신청사유</th>
+								<th width=9%  class="text-center">현재 잔여</th>
+								<th width=18% class="text-center">신청사유</th>
 								<th width=8%  class="text-center">신청일</th>
 								<th width=8%  class="text-center">신청상태</th>
 								<th width=6%  class="text-center">현재상태</th>
-								<th width=8%  class="text-center">결재</th>
+								<th width=7%  class="text-center">결재</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -187,7 +216,7 @@
 			$('#ctable').dataTable({
 				stateSave: true,
 				pageLength: 100,
-				"order": [[ 6, "desc" ]]
+				"order": [[ 7, "desc" ]]   // 신청일 기준 최신순 (컬럼 추가로 인덱스 이동)
 			});
 		});
 	</script>

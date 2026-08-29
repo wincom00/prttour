@@ -173,7 +173,7 @@ if ($edit && (string)$edit['owner_userid'] !== $myId) {
               <td>
                 <a class="btn btn-xs btn-warning" href="<?php echo mbx_h(mbx_plugin_url('my_account.php?edit=' . (int)$row['id'])); ?>"><i class="fa fa-edit"></i></a>
                 <button class="btn btn-xs btn-info btn-test" data-id="<?php echo (int)$row['id']; ?>"><i class="fa fa-plug"></i></button>
-                <a class="btn btn-xs btn-default" href="<?php echo mbx_h(mbx_plugin_url('my_account.php?folders=' . (int)$row['id'])); ?>"><i class="fa fa-folder-open-o"></i></a>
+                <a class="btn btn-xs btn-default" href="<?php echo mbx_h(mbx_plugin_url('my_account.php?folders=' . (int)$row['id'])); ?>"><i class="fa fa-folder-open"></i></a>
                 <form method="post" style="display:inline" onsubmit="return confirm('삭제하시겠습니까?');">
                   <input type="hidden" name="mode" value="del"><input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
                   <button class="btn btn-xs btn-danger" type="submit"><i class="fa fa-trash"></i></button>

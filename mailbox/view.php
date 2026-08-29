@@ -188,7 +188,7 @@ function mbx_addr_line($list) {
       <?php endif; ?>
       <?php if (count($threadRows) > 1): ?>
         <div class="mbx-thread-stack">
-          <h4 class="mbx-thread-title"><i class="fa fa-comments-o"></i> 이 대화의 다른 메일 <?php echo count($threadRows) - 1; ?>개</h4>
+          <h4 class="mbx-thread-title"><i class="fa fa-comments"></i> 이 대화의 다른 메일 <?php echo count($threadRows) - 1; ?>개</h4>
           <?php foreach ($threadRows as $threadRow): ?>
             <?php if ((int)$threadRow['id'] === (int)$row['id']) { continue; } ?>
             <?php

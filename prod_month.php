@@ -12,8 +12,27 @@
     }
 
     // ── 표시 단위 결정 ────────────────────────────────────────────
-    // seldate: 1=출발일(revDate), 2=판매일(wdate)
+    // seldate: 1=출발일(stDate), 2=판매일(revDate)
     // typer:   1=매출액,          2=인원수
+
+    // ── 연도 선택 목록 ───────────────────────────────────────────
+    // 예전에는 연도 datepicker(년 단위 팝업)를 썼는데, 팝업이 화면 위쪽으로 잘려
+    // 과거 연도 칸이 가려지고 선택 자체가 안 됐다. 연도 select 로 바꿔 전부 노출한다.
+    // 선택한 기준(출발일=stDate / 판매일=revDate)의 실제 최소 연도를 하한으로 쓴다
+    $yearFrom  = 2020;                      // 조회 실패 시 사용할 하한
+    $yearTo    = (int)date('Y') + 1;        // 내년 예약까지 조회 가능
+    $year_base = ($seldate == '2') ? 'revDate' : 'stDate';
+    $minRow = mysql_fetch_assoc(mysql_query(
+        "SELECT MIN(YEAR($year_base)) AS y FROM reserve_info
+          WHERE $year_base > '1990-01-01'", $dbConn));
+    if (!empty($minRow['y']) && (int)$minRow['y'] > 1990) {
+        $yearFrom = (int)$minRow['y'];
+    }
+
+    // 처음 들어오면 올해 기준으로 바로 보여준다 (예전에는 연도를 고르기 전까지 화면이 비어 있었다)
+    if ($StartYMD == '') { $StartYMD = date('Y'); }
+    $StartYMD = preg_replace('/[^0-9]/', '', $StartYMD);   // 쿼리에 그대로 들어가므로 숫자만 남긴다
+    if ($StartYMD == '') { $StartYMD = date('Y'); }
 
     // ── printAmt(): 쿼리 실행 + 테이블 HTML echo ─────────────────
     function printAmt() {
@@ -22,13 +41,14 @@
                $pm1,$pm2,$pm3,$pm4,$pm5,$pm6,
                $pm7,$pm8,$pm9,$pm10,$pm11,$pm12,$ptotamt;
 
+        // 기준 날짜 컬럼
+        //   출발일 = b.stDate  /  판매일 = b.revDate   (b.wdate 는 레코드 기록일이라 기준으로 쓰지 않는다)
+        //   예전에는 출발일을 골라도 revDate(판매일)로, 판매일을 고르면 wdate(기록일)로 걸러졌고
+        //   월 구분은 어느 쪽이든 항상 revDate 여서 기준 선택이 사실상 동작하지 않았다.
+        $date_col = ($seldate == '2') ? 'b.revDate' : 'b.stDate';
+
         // 연도 필터
-        $qrysdate = '';
-        if ($seldate == '1') {
-            $qrysdate = " AND year(b.revDate) = '$StartYMD'";
-        } elseif ($seldate == '2') {
-            $qrysdate = " AND year(b.wdate)   = '$StartYMD'";
-        }
+        $qrysdate = " AND YEAR($date_col) = '$StartYMD'";
 
         // 집계 컬럼 선택 (매출액 vs 인원수)
         $val_col = ($typer == 2) ? 'b.p_cnt' : 'b.last_total';
@@ -36,7 +56,7 @@
         // ── CASE WHEN pivot 쿼리 ──────────────────────────────────
         $cases = '';
         for ($m = 1; $m <= 12; $m++) {
-            $cases .= "SUM(CASE WHEN MONTH(b.revDate) = $m $qrysdate
+            $cases .= "SUM(CASE WHEN MONTH($date_col) = $m $qrysdate
                                 THEN $val_col ELSE 0 END) AS tt$m,\n";
         }
         $cases = rtrim($cases, ",\n");
@@ -162,13 +182,11 @@
                                     </select>
                                 </td>
                                 <td width="15%">
-                                    <div class="input-group input-group-sm">
-                                        <input type="text" name="StartYMD"
-                                               class="form-control tourdate1"
-                                               placeholder="연도 선택"
-                                               autocomplete="off"
-                                               value="<?= $StartYMD ?>">
-                                    </div>
+                                    <select class="form-control" name="StartYMD">
+                                        <?php for ($y = $yearTo; $y >= $yearFrom; $y--): ?>
+                                        <option value="<?= $y ?>" <?= ($StartYMD == $y) ? 'selected' : '' ?>><?= $y ?>년</option>
+                                        <?php endfor; ?>
+                                    </select>
                                 </td>
                                 <td class="text-left">
                                     <button type="submit" class="btn btn-primary btn-sm btn1">
@@ -305,27 +323,25 @@
 
 <script>
 $(document).ready(function () {
-    // 연도 datepicker
-    $('.tourdate1').datepicker($.extend({}, pt.defaults.datepicker, {
-        format:      "yyyy",
-        viewMode:    "years",
-        minViewMode: "years",
-        autoclose:   true
-    }));
+    // 연도는 select 로 고른다 (datepicker 팝업이 잘려 과거 연도를 못 고르던 문제)
 
     $.ajaxSetup({async: false});
-    var oTable = $('#rvtab').dataTable({
+    // 헤더 고정: FixedHeader 확장은 scrollX 와 같이 쓸 수 없다(헤더가 별도 div 로 분리됨).
+    // 대신 scrollY 를 주면 표 자체가 세로 스크롤 영역이 되어 헤더가 항상 위에 남는다.
+    // (guide_assign_current_state.php 에서 쓰는 것과 같은 방식)
+    $('#rvtab').dataTable({
         dom: 'Bfrtip',
         buttons: [
             { extend: 'excel', text: '<i class="fa fa-file-excel-o"></i> 엑셀보내기', className: 'btn btn-xs btn-default' },
             { extend: 'print', text: '<i class="fa fa-print"></i> 프린트',           className: 'btn btn-xs btn-default' }
         ],
-        stateSave:  true,
-        bPaginate:  false,
-        ordering:   false,
-        scrollX:    true
+        stateSave:      true,
+        bPaginate:      false,
+        ordering:       false,
+        scrollX:        true,
+        scrollY:        '55vh',
+        scrollCollapse: true    // 행이 적으면 높이를 내용만큼만 쓴다
     });
-    new $.fn.dataTable.FixedHeader(oTable);
 });
 </script>
 </body>

@@ -136,8 +136,8 @@ if (isset($_GET['sent'])) { $mbx_status = '메일을 보냈습니다.'; } // foo
         </form>
         <div class="mbx-actions">
           <span id="mbxLiveState" class="mbx-live-state"><i class="fa fa-refresh"></i><span>LIVE</span></span>
-          <button class="btn btn-default btn-act" data-op="read" disabled><i class="fa fa-envelope-open-o"></i> 읽음</button>
-          <button class="btn btn-default btn-act" data-op="unread" disabled><i class="fa fa-envelope-o"></i> 안읽음</button>
+          <button class="btn btn-default btn-act" data-op="read" disabled><i class="fa fa-envelope-open"></i> 읽음</button>
+          <button class="btn btn-default btn-act" data-op="unread" disabled><i class="fa fa-envelope"></i> 안읽음</button>
           <button class="btn btn-danger btn-act" data-op="<?php echo $folder === 'trash' ? 'delete' : 'trash'; ?>" disabled><i class="fa fa-trash"></i> <?php echo $folder === 'trash' ? '완전삭제' : '삭제'; ?></button>
         </div>
         <table class="table table-hover mailbox-list">

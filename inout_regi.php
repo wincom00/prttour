@@ -315,26 +315,25 @@
 							
 							
 												<select name=empid class="form-control">
-													<option value="">ALL
-													<?php 
-														$que = "select *
+													<option value="">ALL</option>
+													<?php
+														// time_yn='Y'(근태 대상) 조건을 걸면 현직자가 한 명도 안 나온다.
+														// (Y 로 지정된 22명은 전원 퇴사자, 실제 기록이 쌓이는 직원은 N/NULL)
+														// → 목록이 비어 근태 수동 등록 자체가 불가능했다. 현직 직원 전체를 보여준다.
+														$que = "select userid, kor_name
 																from member_list
-																where division in ('admin') && time_yn = 'Y' && out_yn is null 
+																where division in ('admin') && out_yn is null
 																order by kor_name";
 														$que_rst1 = mysql_query($que);
 
-														while ($que_row1 = mysql_Fetch_assoc($que_rst1)): 
-															if (($v_info['userid'] == $que_row1['userid']) || ($empid == $que_row1['userid'])) {  													
+														// 수정 모드일 때는 그 기록의 직원을, 검색 후에는 선택한 직원을 유지
+														$selUid = ($v_info['userid'] != "") ? $v_info['userid'] : $empid;
+														while ($que_row1 = mysql_Fetch_assoc($que_rst1)):
 													?>
-														<option value="<?=$que_row1['userid']?>" selected><?=$que_row1['kor_name']?></option>
+														<option value="<?=htmlspecialchars($que_row1['userid'])?>" <?= ($selUid == $que_row1['userid']) ? 'selected' : '' ?>><?=htmlspecialchars($que_row1['kor_name'])?></option>
 													<?php
-															} else {
-													?>
-														<option value="<?=$que_row1['userid']?>" ><?=$que_row1['kor_name']?></option>
-													<?php
-															}    	
 														endwhile;
-													?>	
+													?>
 													</select>
 										 </div>
 										</div>
