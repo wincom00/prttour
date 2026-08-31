@@ -696,7 +696,9 @@ try {
     header('Expires: 0');
     header("Content-Security-Policy: default-src 'none'; script-src 'none'; img-src 'self' http: https: data:; style-src 'unsafe-inline' http: https:; font-src http: https: data:");
     header('X-Content-Type-Options: nosniff');
-    echo '<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#333}.mbx-sync-warning{padding:12px 14px;margin:0 0 15px;color:#8a6d3b;background:#fcf8e3;border:1px solid #faebcc;border-radius:4px}.mbx-preview-only{white-space:pre-wrap;color:#333}.mbx-thread-source{padding:8px 10px;margin:0 0 12px;color:#31708f;background:#d9edf7;border:1px solid #bce8f1;border-radius:4px}img{max-width:100%;height:auto}</style></head><body>';
+    // 본문은 sandbox iframe 안에서 뜬다. base target=_blank 를 주지 않으면 링크가
+    // iframe 자기 자신을 이동시켜 sandbox(스크립트 차단) 안에서 열리므로 사실상 안 눌린다.
+    echo '<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>body{font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#333}.mbx-sync-warning{padding:12px 14px;margin:0 0 15px;color:#8a6d3b;background:#fcf8e3;border:1px solid #faebcc;border-radius:4px}.mbx-preview-only{white-space:pre-wrap;color:#333}.mbx-thread-source{padding:8px 10px;margin:0 0 12px;color:#31708f;background:#d9edf7;border:1px solid #bce8f1;border-radius:4px}img{max-width:100%;height:auto}</style></head><body>';
     if ($syncError !== '') {
         echo '<div class="mbx-sync-warning">' . mbx_h($syncError) . '</div>';
     }

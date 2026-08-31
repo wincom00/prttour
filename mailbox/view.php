@@ -165,7 +165,7 @@ function mbx_addr_line($list) {
         <?php if ($cc): ?><tr><th>참조</th><td><?php echo mbx_h(mbx_addr_line($cc)); ?></td></tr><?php endif; ?>
         <tr><th>날짜</th><td><?php echo mbx_h($row['mail_date']); ?></td></tr>
       </table>
-      <iframe id="mbxBody" src="<?php echo mbx_h(mbx_plugin_url('api/body.php?id=' . (int)$row['id'] . '&v=' . (int)time())); ?>" sandbox="allow-same-origin" style="width:100%;border:1px solid #ddd;min-height:500px"></iframe>
+      <iframe id="mbxBody" src="<?php echo mbx_h(mbx_plugin_url('api/body.php?id=' . (int)$row['id'] . '&v=' . (int)time())); ?>" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" style="width:100%;border:1px solid #ddd;min-height:500px"></iframe>
       <?php if ($attachments): ?>
         <div class="panel panel-default mbx-attachments-panel"><div class="panel-heading"><i class="fa fa-paperclip"></i> 첨부파일 <?php echo count($attachments); ?>개</div><div class="panel-body">
           <?php foreach ($attachments as $att): ?>
@@ -217,7 +217,7 @@ function mbx_addr_line($list) {
                 <span class="mbx-thread-msg-meta"><?php if ((int)$threadRow['has_attachment']): ?><i class="fa fa-paperclip"></i> <?php endif; ?><?php echo mbx_h($threadDate); ?></span>
                 <a class="btn btn-default btn-xs mbx-thread-open" href="<?php echo mbx_h(mbx_plugin_url('view.php?id=' . (int)$threadRow['id'])); ?>"><i class="fa fa-external-link"></i> 크게 보기</a>
               </div>
-              <iframe class="mbx-thread-body" src="<?php echo mbx_h(mbx_plugin_url('api/body.php?id=' . (int)$threadRow['id'] . '&v=' . (int)time())); ?>" sandbox="allow-same-origin" style="width:100%;border:1px solid #e5e5e5;min-height:160px"></iframe>
+              <iframe class="mbx-thread-body" src="<?php echo mbx_h(mbx_plugin_url('api/body.php?id=' . (int)$threadRow['id'] . '&v=' . (int)time())); ?>" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" style="width:100%;border:1px solid #e5e5e5;min-height:160px"></iframe>
               <?php if ($threadAtts): ?>
                 <div class="panel panel-default mbx-attachments-panel"><div class="panel-heading"><i class="fa fa-paperclip"></i> 첨부파일 <?php echo count($threadAtts); ?>개</div><div class="panel-body">
                   <?php foreach ($threadAtts as $att): ?>
